@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["version","Returns information about cargo’s version."]],"struct":[["CommitInfo","Information about the git repository where cargo was built from."],["VersionInfo","Cargo’s version."]]};

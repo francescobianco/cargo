@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":[["ETAG",""],["LAST_MODIFIED",""],["UNKNOWN",""]],"mod":[["tls",""]],"struct":[["CompletedDownload",""],["Download",""],["Downloads","Helper for downloading crates."],["HttpRegistry","A registry served by the HTTP-based registry API."]]};

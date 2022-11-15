@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":[["Action",""]],"fn":[["auth_token","Returns the token to use for the given registry."],["login","Saves the given token."],["logout","Removes the token for the given registry."],["run_command",""],["sysroot_credential","Gets the path to the libexec processes in the sysroot."]]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"trait":[["IntoUrlWithBase","A type that can be interpreted as a relative Url and converted to a Url."]]};

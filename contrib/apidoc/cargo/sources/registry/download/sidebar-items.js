@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["download",""],["filename",""],["finish_download",""],["is_crate_downloaded",""]]};

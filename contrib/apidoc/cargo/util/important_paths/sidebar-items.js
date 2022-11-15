@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["find_project_manifest_exact","Returns the path to the `file` in `pwd`, if it exists."],["find_root_manifest_for_wd","Finds the root `Cargo.toml`."]]};

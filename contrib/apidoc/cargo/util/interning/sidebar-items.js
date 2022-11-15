@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["leak",""]],"struct":[["InternedString",""],["InternedStringVisitor",""],["STRING_CACHE",""]]};

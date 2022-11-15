@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":[["ColorChoice","Whether messages should use color output"],["ShellOut","A `Write`able object, either with or without color support"],["TtyWidth",""],["Verbosity","The requested verbosity of output."]],"mod":[["imp",""]],"struct":[["Shell","An abstraction around console output that remembers preferences for output verbosity and color."]]};

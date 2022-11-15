@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["doc","Main method for `cargo doc`."],["open_docs",""]],"struct":[["DocOptions","Strongly typed options for the `cargo doc` command."]]};

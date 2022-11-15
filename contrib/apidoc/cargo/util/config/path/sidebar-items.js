@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["ConfigRelativePath","Use with the `get` API to fetch a string that will be converted to a `PathBuf`. Relative paths are converted to absolute paths based on the location of the config file."],["PathAndArgs","A config type that is a program to run."]]};

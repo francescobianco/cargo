@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["Queue","A simple, threadsafe, queue of items of type `T`"],["State",""]]};

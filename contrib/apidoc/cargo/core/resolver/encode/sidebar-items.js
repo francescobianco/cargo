@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["build_path_deps",""],["encodable_package_id",""],["encodable_resolve_node",""],["encode_source",""]],"struct":[["EncodableDependency",""],["EncodablePackageId",""],["EncodableResolve","The `Cargo.lock` structure."],["EncodeState",""],["Patch",""]],"type":[["Metadata",""]]};

@@ -1,0 +1,1364 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/cargo/sources/registry/http_remote.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>http_remote.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../../normalize.css"><link rel="stylesheet" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../../ayu.css" disabled><link rel="stylesheet" href="../../../../dark.css" disabled><link rel="stylesheet" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../cargo/index.html"><div class="logo-container"><img class="rust-logo" src="../../../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../../cargo/index.html"><div class="logo-container"><img class="rust-logo" src="../../../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../../cargo/index.html"><img class="rust-logo" src="../../../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<span id="2">2</span>
+<span id="3">3</span>
+<span id="4">4</span>
+<span id="5">5</span>
+<span id="6">6</span>
+<span id="7">7</span>
+<span id="8">8</span>
+<span id="9">9</span>
+<span id="10">10</span>
+<span id="11">11</span>
+<span id="12">12</span>
+<span id="13">13</span>
+<span id="14">14</span>
+<span id="15">15</span>
+<span id="16">16</span>
+<span id="17">17</span>
+<span id="18">18</span>
+<span id="19">19</span>
+<span id="20">20</span>
+<span id="21">21</span>
+<span id="22">22</span>
+<span id="23">23</span>
+<span id="24">24</span>
+<span id="25">25</span>
+<span id="26">26</span>
+<span id="27">27</span>
+<span id="28">28</span>
+<span id="29">29</span>
+<span id="30">30</span>
+<span id="31">31</span>
+<span id="32">32</span>
+<span id="33">33</span>
+<span id="34">34</span>
+<span id="35">35</span>
+<span id="36">36</span>
+<span id="37">37</span>
+<span id="38">38</span>
+<span id="39">39</span>
+<span id="40">40</span>
+<span id="41">41</span>
+<span id="42">42</span>
+<span id="43">43</span>
+<span id="44">44</span>
+<span id="45">45</span>
+<span id="46">46</span>
+<span id="47">47</span>
+<span id="48">48</span>
+<span id="49">49</span>
+<span id="50">50</span>
+<span id="51">51</span>
+<span id="52">52</span>
+<span id="53">53</span>
+<span id="54">54</span>
+<span id="55">55</span>
+<span id="56">56</span>
+<span id="57">57</span>
+<span id="58">58</span>
+<span id="59">59</span>
+<span id="60">60</span>
+<span id="61">61</span>
+<span id="62">62</span>
+<span id="63">63</span>
+<span id="64">64</span>
+<span id="65">65</span>
+<span id="66">66</span>
+<span id="67">67</span>
+<span id="68">68</span>
+<span id="69">69</span>
+<span id="70">70</span>
+<span id="71">71</span>
+<span id="72">72</span>
+<span id="73">73</span>
+<span id="74">74</span>
+<span id="75">75</span>
+<span id="76">76</span>
+<span id="77">77</span>
+<span id="78">78</span>
+<span id="79">79</span>
+<span id="80">80</span>
+<span id="81">81</span>
+<span id="82">82</span>
+<span id="83">83</span>
+<span id="84">84</span>
+<span id="85">85</span>
+<span id="86">86</span>
+<span id="87">87</span>
+<span id="88">88</span>
+<span id="89">89</span>
+<span id="90">90</span>
+<span id="91">91</span>
+<span id="92">92</span>
+<span id="93">93</span>
+<span id="94">94</span>
+<span id="95">95</span>
+<span id="96">96</span>
+<span id="97">97</span>
+<span id="98">98</span>
+<span id="99">99</span>
+<span id="100">100</span>
+<span id="101">101</span>
+<span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
+<span id="108">108</span>
+<span id="109">109</span>
+<span id="110">110</span>
+<span id="111">111</span>
+<span id="112">112</span>
+<span id="113">113</span>
+<span id="114">114</span>
+<span id="115">115</span>
+<span id="116">116</span>
+<span id="117">117</span>
+<span id="118">118</span>
+<span id="119">119</span>
+<span id="120">120</span>
+<span id="121">121</span>
+<span id="122">122</span>
+<span id="123">123</span>
+<span id="124">124</span>
+<span id="125">125</span>
+<span id="126">126</span>
+<span id="127">127</span>
+<span id="128">128</span>
+<span id="129">129</span>
+<span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
+<span id="133">133</span>
+<span id="134">134</span>
+<span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
+<span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
+<span id="164">164</span>
+<span id="165">165</span>
+<span id="166">166</span>
+<span id="167">167</span>
+<span id="168">168</span>
+<span id="169">169</span>
+<span id="170">170</span>
+<span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
+<span id="177">177</span>
+<span id="178">178</span>
+<span id="179">179</span>
+<span id="180">180</span>
+<span id="181">181</span>
+<span id="182">182</span>
+<span id="183">183</span>
+<span id="184">184</span>
+<span id="185">185</span>
+<span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
+<span id="338">338</span>
+<span id="339">339</span>
+<span id="340">340</span>
+<span id="341">341</span>
+<span id="342">342</span>
+<span id="343">343</span>
+<span id="344">344</span>
+<span id="345">345</span>
+<span id="346">346</span>
+<span id="347">347</span>
+<span id="348">348</span>
+<span id="349">349</span>
+<span id="350">350</span>
+<span id="351">351</span>
+<span id="352">352</span>
+<span id="353">353</span>
+<span id="354">354</span>
+<span id="355">355</span>
+<span id="356">356</span>
+<span id="357">357</span>
+<span id="358">358</span>
+<span id="359">359</span>
+<span id="360">360</span>
+<span id="361">361</span>
+<span id="362">362</span>
+<span id="363">363</span>
+<span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
+<span id="367">367</span>
+<span id="368">368</span>
+<span id="369">369</span>
+<span id="370">370</span>
+<span id="371">371</span>
+<span id="372">372</span>
+<span id="373">373</span>
+<span id="374">374</span>
+<span id="375">375</span>
+<span id="376">376</span>
+<span id="377">377</span>
+<span id="378">378</span>
+<span id="379">379</span>
+<span id="380">380</span>
+<span id="381">381</span>
+<span id="382">382</span>
+<span id="383">383</span>
+<span id="384">384</span>
+<span id="385">385</span>
+<span id="386">386</span>
+<span id="387">387</span>
+<span id="388">388</span>
+<span id="389">389</span>
+<span id="390">390</span>
+<span id="391">391</span>
+<span id="392">392</span>
+<span id="393">393</span>
+<span id="394">394</span>
+<span id="395">395</span>
+<span id="396">396</span>
+<span id="397">397</span>
+<span id="398">398</span>
+<span id="399">399</span>
+<span id="400">400</span>
+<span id="401">401</span>
+<span id="402">402</span>
+<span id="403">403</span>
+<span id="404">404</span>
+<span id="405">405</span>
+<span id="406">406</span>
+<span id="407">407</span>
+<span id="408">408</span>
+<span id="409">409</span>
+<span id="410">410</span>
+<span id="411">411</span>
+<span id="412">412</span>
+<span id="413">413</span>
+<span id="414">414</span>
+<span id="415">415</span>
+<span id="416">416</span>
+<span id="417">417</span>
+<span id="418">418</span>
+<span id="419">419</span>
+<span id="420">420</span>
+<span id="421">421</span>
+<span id="422">422</span>
+<span id="423">423</span>
+<span id="424">424</span>
+<span id="425">425</span>
+<span id="426">426</span>
+<span id="427">427</span>
+<span id="428">428</span>
+<span id="429">429</span>
+<span id="430">430</span>
+<span id="431">431</span>
+<span id="432">432</span>
+<span id="433">433</span>
+<span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
+<span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
+<span id="441">441</span>
+<span id="442">442</span>
+<span id="443">443</span>
+<span id="444">444</span>
+<span id="445">445</span>
+<span id="446">446</span>
+<span id="447">447</span>
+<span id="448">448</span>
+<span id="449">449</span>
+<span id="450">450</span>
+<span id="451">451</span>
+<span id="452">452</span>
+<span id="453">453</span>
+<span id="454">454</span>
+<span id="455">455</span>
+<span id="456">456</span>
+<span id="457">457</span>
+<span id="458">458</span>
+<span id="459">459</span>
+<span id="460">460</span>
+<span id="461">461</span>
+<span id="462">462</span>
+<span id="463">463</span>
+<span id="464">464</span>
+<span id="465">465</span>
+<span id="466">466</span>
+<span id="467">467</span>
+<span id="468">468</span>
+<span id="469">469</span>
+<span id="470">470</span>
+<span id="471">471</span>
+<span id="472">472</span>
+<span id="473">473</span>
+<span id="474">474</span>
+<span id="475">475</span>
+<span id="476">476</span>
+<span id="477">477</span>
+<span id="478">478</span>
+<span id="479">479</span>
+<span id="480">480</span>
+<span id="481">481</span>
+<span id="482">482</span>
+<span id="483">483</span>
+<span id="484">484</span>
+<span id="485">485</span>
+<span id="486">486</span>
+<span id="487">487</span>
+<span id="488">488</span>
+<span id="489">489</span>
+<span id="490">490</span>
+<span id="491">491</span>
+<span id="492">492</span>
+<span id="493">493</span>
+<span id="494">494</span>
+<span id="495">495</span>
+<span id="496">496</span>
+<span id="497">497</span>
+<span id="498">498</span>
+<span id="499">499</span>
+<span id="500">500</span>
+<span id="501">501</span>
+<span id="502">502</span>
+<span id="503">503</span>
+<span id="504">504</span>
+<span id="505">505</span>
+<span id="506">506</span>
+<span id="507">507</span>
+<span id="508">508</span>
+<span id="509">509</span>
+<span id="510">510</span>
+<span id="511">511</span>
+<span id="512">512</span>
+<span id="513">513</span>
+<span id="514">514</span>
+<span id="515">515</span>
+<span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
+<span id="519">519</span>
+<span id="520">520</span>
+<span id="521">521</span>
+<span id="522">522</span>
+<span id="523">523</span>
+<span id="524">524</span>
+<span id="525">525</span>
+<span id="526">526</span>
+<span id="527">527</span>
+<span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
+<span id="531">531</span>
+<span id="532">532</span>
+<span id="533">533</span>
+<span id="534">534</span>
+<span id="535">535</span>
+<span id="536">536</span>
+<span id="537">537</span>
+<span id="538">538</span>
+<span id="539">539</span>
+<span id="540">540</span>
+<span id="541">541</span>
+<span id="542">542</span>
+<span id="543">543</span>
+<span id="544">544</span>
+<span id="545">545</span>
+<span id="546">546</span>
+<span id="547">547</span>
+<span id="548">548</span>
+<span id="549">549</span>
+<span id="550">550</span>
+<span id="551">551</span>
+<span id="552">552</span>
+<span id="553">553</span>
+<span id="554">554</span>
+<span id="555">555</span>
+<span id="556">556</span>
+<span id="557">557</span>
+<span id="558">558</span>
+<span id="559">559</span>
+<span id="560">560</span>
+<span id="561">561</span>
+<span id="562">562</span>
+<span id="563">563</span>
+<span id="564">564</span>
+<span id="565">565</span>
+<span id="566">566</span>
+<span id="567">567</span>
+<span id="568">568</span>
+<span id="569">569</span>
+<span id="570">570</span>
+<span id="571">571</span>
+<span id="572">572</span>
+<span id="573">573</span>
+<span id="574">574</span>
+<span id="575">575</span>
+<span id="576">576</span>
+<span id="577">577</span>
+<span id="578">578</span>
+<span id="579">579</span>
+<span id="580">580</span>
+<span id="581">581</span>
+<span id="582">582</span>
+<span id="583">583</span>
+<span id="584">584</span>
+<span id="585">585</span>
+<span id="586">586</span>
+<span id="587">587</span>
+<span id="588">588</span>
+<span id="589">589</span>
+<span id="590">590</span>
+<span id="591">591</span>
+<span id="592">592</span>
+<span id="593">593</span>
+<span id="594">594</span>
+<span id="595">595</span>
+<span id="596">596</span>
+<span id="597">597</span>
+<span id="598">598</span>
+<span id="599">599</span>
+<span id="600">600</span>
+<span id="601">601</span>
+<span id="602">602</span>
+<span id="603">603</span>
+<span id="604">604</span>
+<span id="605">605</span>
+<span id="606">606</span>
+<span id="607">607</span>
+<span id="608">608</span>
+<span id="609">609</span>
+<span id="610">610</span>
+<span id="611">611</span>
+<span id="612">612</span>
+<span id="613">613</span>
+<span id="614">614</span>
+<span id="615">615</span>
+<span id="616">616</span>
+<span id="617">617</span>
+<span id="618">618</span>
+<span id="619">619</span>
+<span id="620">620</span>
+<span id="621">621</span>
+<span id="622">622</span>
+<span id="623">623</span>
+<span id="624">624</span>
+<span id="625">625</span>
+<span id="626">626</span>
+<span id="627">627</span>
+<span id="628">628</span>
+<span id="629">629</span>
+<span id="630">630</span>
+<span id="631">631</span>
+<span id="632">632</span>
+<span id="633">633</span>
+<span id="634">634</span>
+<span id="635">635</span>
+<span id="636">636</span>
+<span id="637">637</span>
+<span id="638">638</span>
+<span id="639">639</span>
+<span id="640">640</span>
+<span id="641">641</span>
+<span id="642">642</span>
+<span id="643">643</span>
+<span id="644">644</span>
+<span id="645">645</span>
+<span id="646">646</span>
+<span id="647">647</span>
+<span id="648">648</span>
+<span id="649">649</span>
+<span id="650">650</span>
+<span id="651">651</span>
+<span id="652">652</span>
+<span id="653">653</span>
+<span id="654">654</span>
+<span id="655">655</span>
+<span id="656">656</span>
+<span id="657">657</span>
+<span id="658">658</span>
+<span id="659">659</span>
+<span id="660">660</span>
+<span id="661">661</span>
+<span id="662">662</span>
+<span id="663">663</span>
+<span id="664">664</span>
+<span id="665">665</span>
+<span id="666">666</span>
+<span id="667">667</span>
+<span id="668">668</span>
+<span id="669">669</span>
+<span id="670">670</span>
+<span id="671">671</span>
+<span id="672">672</span>
+<span id="673">673</span>
+<span id="674">674</span>
+<span id="675">675</span>
+<span id="676">676</span>
+<span id="677">677</span>
+<span id="678">678</span>
+<span id="679">679</span>
+<span id="680">680</span>
+<span id="681">681</span>
+</pre><pre class="rust"><code><span class="doccomment">//! Access to a HTTP-based crate registry.
+//!
+//! See [`HttpRegistry`] for details.
+
+</span><span class="kw">use </span><span class="kw">crate</span>::core::{PackageId, SourceId};
+<span class="kw">use </span><span class="kw">crate</span>::ops;
+<span class="kw">use </span><span class="kw">crate</span>::sources::registry::download;
+<span class="kw">use </span><span class="kw">crate</span>::sources::registry::MaybeLock;
+<span class="kw">use </span><span class="kw">crate</span>::sources::registry::{LoadResponse, RegistryConfig, RegistryData};
+<span class="kw">use </span><span class="kw">crate</span>::util::errors::{CargoResult, HttpNotSuccessful};
+<span class="kw">use </span><span class="kw">crate</span>::util::network::Retry;
+<span class="kw">use </span><span class="kw">crate</span>::util::{internal, Config, Filesystem, Progress, ProgressStyle};
+<span class="kw">use </span>anyhow::Context;
+<span class="kw">use </span>cargo_util::paths;
+<span class="kw">use </span>curl::easy::{HttpVersion, List};
+<span class="kw">use </span>curl::multi::{EasyHandle, Multi};
+<span class="kw">use </span>log::{debug, trace};
+<span class="kw">use </span>std::cell::RefCell;
+<span class="kw">use </span>std::collections::{HashMap, HashSet};
+<span class="kw">use </span>std::fs::{<span class="self">self</span>, File};
+<span class="kw">use </span>std::path::{Path, PathBuf};
+<span class="kw">use </span>std::str;
+<span class="kw">use </span>std::task::{ready, Poll};
+<span class="kw">use </span>std::time::Duration;
+<span class="kw">use </span>url::Url;
+
+<span class="kw">const </span>ETAG: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str = <span class="string">&quot;ETag&quot;</span>;
+<span class="kw">const </span>LAST_MODIFIED: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str = <span class="string">&quot;Last-Modified&quot;</span>;
+<span class="kw">const </span>UNKNOWN: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str = <span class="string">&quot;Unknown&quot;</span>;
+
+<span class="doccomment">/// A registry served by the HTTP-based registry API.
+///
+/// This type is primarily accessed through the [`RegistryData`] trait.
+///
+/// `HttpRegistry` implements the HTTP-based registry API outlined in [RFC 2789]. Read the RFC for
+/// the complete protocol, but _roughly_ the implementation loads each index file (e.g.,
+/// config.json or re/ge/regex) from an HTTP service rather than from a locally cloned git
+/// repository. The remote service can more or less be a static file server that simply serves the
+/// contents of the origin git repository.
+///
+/// Implemented naively, this leads to a significant amount of network traffic, as a lookup of any
+/// index file would need to check with the remote backend if the index file has changed. This
+/// cost is somewhat mitigated by the use of HTTP conditional fetches (`If-Modified-Since` and
+/// `If-None-Match` for `ETag`s) which can be efficiently handled by HTTP/2.
+///
+/// [RFC 2789]: https://github.com/rust-lang/rfcs/pull/2789
+</span><span class="kw">pub struct </span>HttpRegistry&lt;<span class="lifetime">&#39;cfg</span>&gt; {
+    index_path: Filesystem,
+    cache_path: Filesystem,
+    source_id: SourceId,
+    config: <span class="kw-2">&amp;</span><span class="lifetime">&#39;cfg </span>Config,
+
+    <span class="doccomment">/// Store the server URL without the protocol prefix (sparse+)
+    </span>url: Url,
+
+    <span class="doccomment">/// HTTP multi-handle for asynchronous/parallel requests.
+    </span>multi: Multi,
+
+    <span class="doccomment">/// Has the client requested a cache update?
+    ///
+    /// Only if they have do we double-check the freshness of each locally-stored index file.
+    </span>requested_update: bool,
+
+    <span class="doccomment">/// State for currently pending index downloads.
+    </span>downloads: Downloads&lt;<span class="lifetime">&#39;cfg</span>&gt;,
+
+    <span class="doccomment">/// Does the config say that we can use HTTP multiplexing?
+    </span>multiplexing: bool,
+
+    <span class="doccomment">/// What paths have we already fetched since the last index update?
+    ///
+    /// We do not need to double-check any of these index files since we have already done so.
+    </span>fresh: HashSet&lt;PathBuf&gt;,
+
+    <span class="doccomment">/// Have we started to download any index files?
+    </span>fetch_started: bool,
+
+    <span class="doccomment">/// Cached registry configuration.
+    </span>registry_config: <span class="prelude-ty">Option</span>&lt;RegistryConfig&gt;,
+}
+
+<span class="doccomment">/// Helper for downloading crates.
+</span><span class="kw">pub struct </span>Downloads&lt;<span class="lifetime">&#39;cfg</span>&gt; {
+    <span class="doccomment">/// When a download is started, it is added to this map. The key is a
+    /// &quot;token&quot; (see `Download::token`). It is removed once the download is
+    /// finished.
+    </span>pending: HashMap&lt;usize, (Download&lt;<span class="lifetime">&#39;cfg</span>&gt;, EasyHandle)&gt;,
+    <span class="doccomment">/// Set of paths currently being downloaded.
+    /// This should stay in sync with `pending`.
+    </span>pending_paths: HashSet&lt;PathBuf&gt;,
+    <span class="doccomment">/// The final result of each download.
+    </span>results: HashMap&lt;PathBuf, CargoResult&lt;CompletedDownload&gt;&gt;,
+    <span class="doccomment">/// The next ID to use for creating a token (see `Download::token`).
+    </span>next: usize,
+    <span class="doccomment">/// Progress bar.
+    </span>progress: RefCell&lt;<span class="prelude-ty">Option</span>&lt;Progress&lt;<span class="lifetime">&#39;cfg</span>&gt;&gt;&gt;,
+    <span class="doccomment">/// Number of downloads that have successfully finished.
+    </span>downloads_finished: usize,
+    <span class="doccomment">/// Number of times the caller has requested blocking. This is used for
+    /// an estimate of progress.
+    </span>blocking_calls: usize,
+}
+
+<span class="kw">struct </span>Download&lt;<span class="lifetime">&#39;cfg</span>&gt; {
+    <span class="doccomment">/// The token for this download, used as the key of the `Downloads::pending` map
+    /// and stored in `EasyHandle` as well.
+    </span>token: usize,
+
+    <span class="doccomment">/// The path of the package that we&#39;re downloading.
+    </span>path: PathBuf,
+
+    <span class="doccomment">/// Actual downloaded data, updated throughout the lifetime of this download.
+    </span>data: RefCell&lt;Vec&lt;u8&gt;&gt;,
+
+    <span class="doccomment">/// ETag or Last-Modified header received from the server (if any).
+    </span>index_version: RefCell&lt;<span class="prelude-ty">Option</span>&lt;String&gt;&gt;,
+
+    <span class="doccomment">/// Logic used to track retrying this download if it&#39;s a spurious failure.
+    </span>retry: Retry&lt;<span class="lifetime">&#39;cfg</span>&gt;,
+}
+
+<span class="kw">struct </span>CompletedDownload {
+    response_code: u32,
+    data: Vec&lt;u8&gt;,
+    index_version: String,
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;cfg</span>&gt; HttpRegistry&lt;<span class="lifetime">&#39;cfg</span>&gt; {
+    <span class="kw">pub fn </span>new(
+        source_id: SourceId,
+        config: <span class="kw-2">&amp;</span><span class="lifetime">&#39;cfg </span>Config,
+        name: <span class="kw-2">&amp;</span>str,
+    ) -&gt; CargoResult&lt;HttpRegistry&lt;<span class="lifetime">&#39;cfg</span>&gt;&gt; {
+        <span class="kw">if </span>!config.cli_unstable().sparse_registry {
+            <span class="macro">anyhow::bail!</span>(<span class="string">&quot;usage of sparse registries requires `-Z sparse-registry`&quot;</span>);
+        }
+        <span class="kw">let </span>url = source_id.url().as_str();
+        <span class="comment">// Ensure the url ends with a slash so we can concatenate paths.
+        </span><span class="kw">if </span>!url.ends_with(<span class="string">&#39;/&#39;</span>) {
+            <span class="macro">anyhow::bail!</span>(<span class="string">&quot;sparse registry url must end in a slash `/`: sparse+{url}&quot;</span>)
+        }
+
+        <span class="prelude-val">Ok</span>(HttpRegistry {
+            index_path: config.registry_index_path().join(name),
+            cache_path: config.registry_cache_path().join(name),
+            source_id,
+            config,
+            url: source_id.url().to_owned(),
+            multi: Multi::new(),
+            multiplexing: <span class="bool-val">false</span>,
+            downloads: Downloads {
+                next: <span class="number">0</span>,
+                pending: HashMap::new(),
+                pending_paths: HashSet::new(),
+                results: HashMap::new(),
+                progress: RefCell::new(<span class="prelude-val">Some</span>(Progress::with_style(
+                    <span class="string">&quot;Fetch&quot;</span>,
+                    ProgressStyle::Indeterminate,
+                    config,
+                ))),
+                downloads_finished: <span class="number">0</span>,
+                blocking_calls: <span class="number">0</span>,
+            },
+            fresh: HashSet::new(),
+            requested_update: <span class="bool-val">false</span>,
+            fetch_started: <span class="bool-val">false</span>,
+            registry_config: <span class="prelude-val">None</span>,
+        })
+    }
+
+    <span class="kw">fn </span>handle_http_header(buf: <span class="kw-2">&amp;</span>[u8]) -&gt; <span class="prelude-ty">Option</span>&lt;(<span class="kw-2">&amp;</span>str, <span class="kw-2">&amp;</span>str)&gt; {
+        <span class="kw">if </span>buf.is_empty() {
+            <span class="kw">return </span><span class="prelude-val">None</span>;
+        }
+        <span class="kw">let </span>buf = std::str::from_utf8(buf).ok()<span class="question-mark">?</span>.trim_end();
+        <span class="comment">// Don&#39;t let server sneak extra lines anywhere.
+        </span><span class="kw">if </span>buf.contains(<span class="string">&#39;\n&#39;</span>) {
+            <span class="kw">return </span><span class="prelude-val">None</span>;
+        }
+        <span class="kw">let </span>(tag, value) = buf.split_once(<span class="string">&#39;:&#39;</span>)<span class="question-mark">?</span>;
+        <span class="kw">let </span>value = value.trim();
+        <span class="prelude-val">Some</span>((tag, value))
+    }
+
+    <span class="kw">fn </span>start_fetch(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; CargoResult&lt;()&gt; {
+        <span class="kw">if </span><span class="self">self</span>.fetch_started {
+            <span class="comment">// We only need to run the setup code once.
+            </span><span class="kw">return </span><span class="prelude-val">Ok</span>(());
+        }
+        <span class="self">self</span>.fetch_started = <span class="bool-val">true</span>;
+
+        <span class="comment">// We&#39;ve enabled the `http2` feature of `curl` in Cargo, so treat
+        // failures here as fatal as it would indicate a build-time problem.
+        </span><span class="self">self</span>.multiplexing = <span class="self">self</span>.config.http_config()<span class="question-mark">?</span>.multiplexing.unwrap_or(<span class="bool-val">true</span>);
+
+        <span class="self">self</span>.multi
+            .pipelining(<span class="bool-val">false</span>, <span class="self">self</span>.multiplexing)
+            .with_context(|| <span class="string">&quot;failed to enable multiplexing/pipelining in curl&quot;</span>)<span class="question-mark">?</span>;
+
+        <span class="comment">// let&#39;s not flood the server with connections
+        </span><span class="self">self</span>.multi.set_max_host_connections(<span class="number">2</span>)<span class="question-mark">?</span>;
+
+        <span class="self">self</span>.config
+            .shell()
+            .status(<span class="string">&quot;Updating&quot;</span>, <span class="self">self</span>.source_id.display_index())<span class="question-mark">?</span>;
+
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn </span>handle_completed_downloads(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; CargoResult&lt;()&gt; {
+        <span class="macro">assert_eq!</span>(
+            <span class="self">self</span>.downloads.pending.len(),
+            <span class="self">self</span>.downloads.pending_paths.len()
+        );
+
+        <span class="comment">// Collect the results from the Multi handle.
+        </span><span class="kw">let </span>results = {
+            <span class="kw">let </span><span class="kw-2">mut </span>results = Vec::new();
+            <span class="kw">let </span>pending = <span class="kw-2">&amp;mut </span><span class="self">self</span>.downloads.pending;
+            <span class="self">self</span>.multi.messages(|msg| {
+                <span class="kw">let </span>token = msg.token().expect(<span class="string">&quot;failed to read token&quot;</span>);
+                <span class="kw">let </span>(<span class="kw">_</span>, handle) = <span class="kw-2">&amp;</span>pending[<span class="kw-2">&amp;</span>token];
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(result) = msg.result_for(handle) {
+                    results.push((token, result));
+                };
+            });
+            results
+        };
+        <span class="kw">for </span>(token, result) <span class="kw">in </span>results {
+            <span class="kw">let </span>(<span class="kw-2">mut </span>download, handle) = <span class="self">self</span>.downloads.pending.remove(<span class="kw-2">&amp;</span>token).unwrap();
+            <span class="kw">let </span><span class="kw-2">mut </span>handle = <span class="self">self</span>.multi.remove(handle)<span class="question-mark">?</span>;
+            <span class="kw">let </span>data = download.data.take();
+            <span class="kw">let </span>url = <span class="self">self</span>.full_url(<span class="kw-2">&amp;</span>download.path);
+            <span class="kw">let </span>result = <span class="kw">match </span>download.retry.r#try(|| {
+                result.with_context(|| <span class="macro">format!</span>(<span class="string">&quot;failed to download from `{}`&quot;</span>, url))<span class="question-mark">?</span>;
+                <span class="kw">let </span>code = handle.response_code()<span class="question-mark">?</span>;
+                <span class="comment">// Keep this list of expected status codes in sync with the codes handled in `load`
+                </span><span class="kw">if </span>!<span class="macro">matches!</span>(code, <span class="number">200 </span>| <span class="number">304 </span>| <span class="number">410 </span>| <span class="number">404 </span>| <span class="number">451</span>) {
+                    <span class="kw">let </span>url = handle.effective_url()<span class="question-mark">?</span>.unwrap_or(<span class="kw-2">&amp;</span>url);
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(HttpNotSuccessful {
+                        code,
+                        url: url.to_owned(),
+                        body: data,
+                    }
+                    .into());
+                }
+                <span class="prelude-val">Ok</span>(data)
+            }) {
+                <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(data)) =&gt; <span class="prelude-val">Ok</span>(CompletedDownload {
+                    response_code: handle.response_code()<span class="question-mark">?</span>,
+                    data,
+                    index_version: download
+                        .index_version
+                        .take()
+                        .unwrap_or_else(|| UNKNOWN.to_string()),
+                }),
+                <span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>) =&gt; {
+                    <span class="comment">// retry the operation
+                    </span><span class="kw">let </span>handle = <span class="self">self</span>.multi.add(handle)<span class="question-mark">?</span>;
+                    <span class="self">self</span>.downloads.pending.insert(token, (download, handle));
+                    <span class="kw">continue</span>;
+                }
+                <span class="prelude-val">Err</span>(e) =&gt; <span class="prelude-val">Err</span>(e),
+            };
+
+            <span class="macro">assert!</span>(<span class="self">self</span>.downloads.pending_paths.remove(<span class="kw-2">&amp;</span>download.path));
+            <span class="self">self</span>.downloads.results.insert(download.path, result);
+            <span class="self">self</span>.downloads.downloads_finished += <span class="number">1</span>;
+        }
+
+        <span class="self">self</span>.downloads.tick()<span class="question-mark">?</span>;
+
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn </span>full_url(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path) -&gt; String {
+        <span class="comment">// self.url always ends with a slash.
+        </span><span class="macro">format!</span>(<span class="string">&quot;{}{}&quot;</span>, <span class="self">self</span>.url, path.display())
+    }
+
+    <span class="kw">fn </span>is_fresh(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span>Path) -&gt; bool {
+        <span class="kw">if </span>!<span class="self">self</span>.requested_update {
+            <span class="macro">trace!</span>(
+                <span class="string">&quot;using local {} as user did not request update&quot;</span>,
+                path.display()
+            );
+            <span class="bool-val">true
+        </span>} <span class="kw">else if </span><span class="self">self</span>.config.cli_unstable().no_index_update {
+            <span class="macro">trace!</span>(<span class="string">&quot;using local {} in no_index_update mode&quot;</span>, path.display());
+            <span class="bool-val">true
+        </span>} <span class="kw">else if </span><span class="self">self</span>.config.offline() {
+            <span class="macro">trace!</span>(<span class="string">&quot;using local {} in offline mode&quot;</span>, path.display());
+            <span class="bool-val">true
+        </span>} <span class="kw">else if </span><span class="self">self</span>.fresh.contains(path) {
+            <span class="macro">trace!</span>(<span class="string">&quot;using local {} as it was already fetched&quot;</span>, path.display());
+            <span class="bool-val">true
+        </span>} <span class="kw">else </span>{
+            <span class="macro">debug!</span>(<span class="string">&quot;checking freshness of {}&quot;</span>, path.display());
+            <span class="bool-val">false
+        </span>}
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;cfg</span>&gt; RegistryData <span class="kw">for </span>HttpRegistry&lt;<span class="lifetime">&#39;cfg</span>&gt; {
+    <span class="kw">fn </span>prepare(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; CargoResult&lt;()&gt; {
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">fn </span>index_path(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Filesystem {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.index_path
+    }
+
+    <span class="kw">fn </span>assert_index_locked&lt;<span class="lifetime">&#39;a</span>&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, path: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Filesystem) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Path {
+        <span class="self">self</span>.config.assert_package_cache_locked(path)
+    }
+
+    <span class="kw">fn </span>is_updated(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.requested_update
+    }
+
+    <span class="kw">fn </span>load(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        _root: <span class="kw-2">&amp;</span>Path,
+        path: <span class="kw-2">&amp;</span>Path,
+        index_version: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;,
+    ) -&gt; Poll&lt;CargoResult&lt;LoadResponse&gt;&gt; {
+        <span class="macro">trace!</span>(<span class="string">&quot;load: {}&quot;</span>, path.display());
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(_token) = <span class="self">self</span>.downloads.pending_paths.get(path) {
+            <span class="macro">debug!</span>(<span class="string">&quot;dependency is still pending: {}&quot;</span>, path.display());
+            <span class="kw">return </span>Poll::Pending;
+        }
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(index_version) = index_version {
+            <span class="macro">trace!</span>(
+                <span class="string">&quot;local cache of {} is available at version `{}`&quot;</span>,
+                path.display(),
+                index_version
+            );
+            <span class="kw">if </span><span class="self">self</span>.is_fresh(path) {
+                <span class="kw">return </span>Poll::Ready(<span class="prelude-val">Ok</span>(LoadResponse::CacheValid));
+            }
+        } <span class="kw">else if </span><span class="self">self</span>.fresh.contains(path) {
+            <span class="macro">debug!</span>(
+                <span class="string">&quot;cache did not contain previously downloaded file {}&quot;</span>,
+                path.display()
+            );
+        }
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(result) = <span class="self">self</span>.downloads.results.remove(path) {
+            <span class="kw">let </span>result =
+                result.with_context(|| <span class="macro">format!</span>(<span class="string">&quot;download of {} failed&quot;</span>, path.display()))<span class="question-mark">?</span>;
+            <span class="macro">debug!</span>(
+                <span class="string">&quot;index file downloaded with status code {}&quot;</span>,
+                result.response_code
+            );
+            <span class="macro">trace!</span>(<span class="string">&quot;index file version: {}&quot;</span>, result.index_version);
+
+            <span class="kw">if </span>!<span class="self">self</span>.fresh.insert(path.to_path_buf()) {
+                <span class="macro">debug!</span>(<span class="string">&quot;downloaded the index file `{}` twice&quot;</span>, path.display())
+            }
+
+            <span class="comment">// The status handled here need to be kept in sync with the codes handled
+            // in `handle_completed_downloads`
+            </span><span class="kw">match </span>result.response_code {
+                <span class="number">200 </span>=&gt; {}
+                <span class="number">304 </span>=&gt; {
+                    <span class="comment">// Not Modified: the data in the cache is still the latest.
+                    </span><span class="kw">if </span>index_version.is_none() {
+                        <span class="kw">return </span>Poll::Ready(<span class="prelude-val">Err</span>(<span class="macro">anyhow::anyhow!</span>(
+                            <span class="string">&quot;server said not modified (HTTP 304) when no local cache exists&quot;
+                        </span>)));
+                    }
+                    <span class="kw">return </span>Poll::Ready(<span class="prelude-val">Ok</span>(LoadResponse::CacheValid));
+                }
+                <span class="number">404 </span>| <span class="number">410 </span>| <span class="number">451 </span>=&gt; {
+                    <span class="comment">// The crate was not found or deleted from the registry.
+                    </span><span class="kw">return </span>Poll::Ready(<span class="prelude-val">Ok</span>(LoadResponse::NotFound));
+                }
+                code =&gt; {
+                    <span class="kw">return </span><span class="prelude-val">Err</span>(internal(<span class="macro">format!</span>(<span class="string">&quot;unexpected HTTP status code {code}&quot;</span>))).into();
+                }
+            }
+
+            <span class="kw">return </span>Poll::Ready(<span class="prelude-val">Ok</span>(LoadResponse::Data {
+                raw_data: result.data,
+                index_version: <span class="prelude-val">Some</span>(result.index_version),
+            }));
+        }
+
+        <span class="comment">// Looks like we&#39;re going to have to do a network request.
+        </span><span class="self">self</span>.start_fetch()<span class="question-mark">?</span>;
+
+        <span class="comment">// Load the registry config.
+        </span><span class="kw">if </span><span class="self">self</span>.registry_config.is_none() &amp;&amp; path != Path::new(<span class="string">&quot;config.json&quot;</span>) {
+            <span class="macro">ready!</span>(<span class="self">self</span>.config()<span class="question-mark">?</span>);
+        }
+
+        <span class="kw">let </span><span class="kw-2">mut </span>handle = ops::http_handle(<span class="self">self</span>.config)<span class="question-mark">?</span>;
+        <span class="kw">let </span>full_url = <span class="self">self</span>.full_url(path);
+        <span class="macro">debug!</span>(<span class="string">&quot;fetch {}&quot;</span>, full_url);
+        handle.get(<span class="bool-val">true</span>)<span class="question-mark">?</span>;
+        handle.url(<span class="kw-2">&amp;</span>full_url)<span class="question-mark">?</span>;
+        handle.follow_location(<span class="bool-val">true</span>)<span class="question-mark">?</span>;
+
+        <span class="comment">// Enable HTTP/2 if possible.
+        </span><span class="kw">if </span><span class="self">self</span>.multiplexing {
+            handle.http_version(HttpVersion::V2)<span class="question-mark">?</span>;
+        } <span class="kw">else </span>{
+            handle.http_version(HttpVersion::V11)<span class="question-mark">?</span>;
+        }
+
+        <span class="comment">// This is an option to `libcurl` which indicates that if there&#39;s a
+        // bunch of parallel requests to the same host they all wait until the
+        // pipelining status of the host is known. This means that we won&#39;t
+        // initiate dozens of connections to crates.io, but rather only one.
+        // Once the main one is opened we realized that pipelining is possible
+        // and multiplexing is possible with static.crates.io. All in all this
+        // reduces the number of connections done to a more manageable state.
+        </span>handle.pipewait(<span class="bool-val">true</span>)<span class="question-mark">?</span>;
+
+        <span class="comment">// Make sure we don&#39;t send data back if it&#39;s the same as we have in the index.
+        </span><span class="kw">let </span><span class="kw-2">mut </span>headers = List::new();
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(index_version) = index_version {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>((key, value)) = index_version.split_once(<span class="string">&#39;:&#39;</span>) {
+                <span class="kw">match </span>key {
+                    ETAG =&gt; headers.append(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;If-None-Match: {}&quot;</span>, value.trim()))<span class="question-mark">?</span>,
+                    LAST_MODIFIED =&gt; {
+                        headers.append(<span class="kw-2">&amp;</span><span class="macro">format!</span>(<span class="string">&quot;If-Modified-Since: {}&quot;</span>, value.trim()))<span class="question-mark">?
+                    </span>}
+                    <span class="kw">_ </span>=&gt; <span class="macro">debug!</span>(<span class="string">&quot;unexpected index version: {}&quot;</span>, index_version),
+                }
+            }
+        }
+        handle.http_headers(headers)<span class="question-mark">?</span>;
+
+        <span class="comment">// We&#39;re going to have a bunch of downloads all happening &quot;at the same time&quot;.
+        // So, we need some way to track what headers/data/responses are for which request.
+        // We do that through this token. Each request (and associated response) gets one.
+        </span><span class="kw">let </span>token = <span class="self">self</span>.downloads.next;
+        <span class="self">self</span>.downloads.next += <span class="number">1</span>;
+        <span class="macro">debug!</span>(<span class="string">&quot;downloading {} as {}&quot;</span>, path.display(), token);
+        <span class="macro">assert!</span>(
+            <span class="self">self</span>.downloads.pending_paths.insert(path.to_path_buf()),
+            <span class="string">&quot;path queued for download more than once&quot;
+        </span>);
+
+        <span class="comment">// Each write should go to self.downloads.pending[&amp;token].data.
+        // Since the write function must be &#39;static, we access downloads through a thread-local.
+        // That thread-local is set up in `block_until_ready` when it calls self.multi.perform,
+        // which is what ultimately calls this method.
+        </span>handle.write_function(<span class="kw">move </span>|buf| {
+            <span class="macro">trace!</span>(<span class="string">&quot;{} - {} bytes of data&quot;</span>, token, buf.len());
+            tls::with(|downloads| {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(downloads) = downloads {
+                    downloads.pending[<span class="kw-2">&amp;</span>token]
+                        .<span class="number">0
+                        </span>.data
+                        .borrow_mut()
+                        .extend_from_slice(buf);
+                }
+            });
+            <span class="prelude-val">Ok</span>(buf.len())
+        })<span class="question-mark">?</span>;
+
+        <span class="comment">// And ditto for the header function.
+        </span>handle.header_function(<span class="kw">move </span>|buf| {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>((tag, value)) = <span class="self">Self</span>::handle_http_header(buf) {
+                <span class="kw">let </span>is_etag = tag.eq_ignore_ascii_case(ETAG);
+                <span class="kw">let </span>is_lm = tag.eq_ignore_ascii_case(LAST_MODIFIED);
+                <span class="kw">if </span>is_etag || is_lm {
+                    tls::with(|downloads| {
+                        <span class="kw">if let </span><span class="prelude-val">Some</span>(downloads) = downloads {
+                            <span class="kw">let </span><span class="kw-2">mut </span>index_version =
+                                downloads.pending[<span class="kw-2">&amp;</span>token].<span class="number">0</span>.index_version.borrow_mut();
+                            <span class="kw">if </span>is_etag {
+                                <span class="kw-2">*</span>index_version = <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;{}: {}&quot;</span>, ETAG, value));
+                            } <span class="kw">else if </span>index_version.is_none() &amp;&amp; is_lm {
+                                <span class="kw-2">*</span>index_version = <span class="prelude-val">Some</span>(<span class="macro">format!</span>(<span class="string">&quot;{}: {}&quot;</span>, LAST_MODIFIED, value));
+                            };
+                        }
+                    })
+                }
+            }
+
+            <span class="bool-val">true
+        </span>})<span class="question-mark">?</span>;
+
+        <span class="kw">let </span>dl = Download {
+            token,
+            data: RefCell::new(Vec::new()),
+            path: path.to_path_buf(),
+            index_version: RefCell::new(<span class="prelude-val">None</span>),
+            retry: Retry::new(<span class="self">self</span>.config)<span class="question-mark">?</span>,
+        };
+
+        <span class="comment">// Finally add the request we&#39;ve lined up to the pool of requests that cURL manages.
+        </span><span class="kw">let </span><span class="kw-2">mut </span>handle = <span class="self">self</span>.multi.add(handle)<span class="question-mark">?</span>;
+        handle.set_token(token)<span class="question-mark">?</span>;
+        <span class="self">self</span>.downloads.pending.insert(dl.token, (dl, handle));
+
+        Poll::Pending
+    }
+
+    <span class="kw">fn </span>config(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; Poll&lt;CargoResult&lt;<span class="prelude-ty">Option</span>&lt;RegistryConfig&gt;&gt;&gt; {
+        <span class="kw">if </span><span class="self">self</span>.registry_config.is_some() {
+            <span class="kw">return </span>Poll::Ready(<span class="prelude-val">Ok</span>(<span class="self">self</span>.registry_config.clone()));
+        }
+        <span class="macro">debug!</span>(<span class="string">&quot;loading config&quot;</span>);
+        <span class="kw">let </span>index_path = <span class="self">self</span>.config.assert_package_cache_locked(<span class="kw-2">&amp;</span><span class="self">self</span>.index_path);
+        <span class="kw">let </span>config_json_path = index_path.join(<span class="string">&quot;config.json&quot;</span>);
+        <span class="kw">if </span><span class="self">self</span>.is_fresh(Path::new(<span class="string">&quot;config.json&quot;</span>)) {
+            <span class="kw">match </span>fs::read(<span class="kw-2">&amp;</span>config_json_path) {
+                <span class="prelude-val">Ok</span>(raw_data) =&gt; <span class="kw">match </span>serde_json::from_slice(<span class="kw-2">&amp;</span>raw_data) {
+                    <span class="prelude-val">Ok</span>(json) =&gt; {
+                        <span class="self">self</span>.registry_config = <span class="prelude-val">Some</span>(json);
+                        <span class="kw">return </span>Poll::Ready(<span class="prelude-val">Ok</span>(<span class="self">self</span>.registry_config.clone()));
+                    }
+                    <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">log::debug!</span>(<span class="string">&quot;failed to decode cached config.json: {}&quot;</span>, e),
+                },
+                <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">log::debug!</span>(<span class="string">&quot;failed to read config.json cache: {}&quot;</span>, e),
+            }
+        }
+
+        <span class="kw">match </span><span class="macro">ready!</span>(<span class="self">self</span>.load(Path::new(<span class="string">&quot;&quot;</span>), Path::new(<span class="string">&quot;config.json&quot;</span>), <span class="prelude-val">None</span>)<span class="question-mark">?</span>) {
+            LoadResponse::Data {
+                raw_data,
+                index_version: <span class="kw">_</span>,
+            } =&gt; {
+                <span class="macro">trace!</span>(<span class="string">&quot;config loaded&quot;</span>);
+                <span class="self">self</span>.registry_config = <span class="prelude-val">Some</span>(serde_json::from_slice(<span class="kw-2">&amp;</span>raw_data)<span class="question-mark">?</span>);
+                <span class="kw">if </span>paths::create_dir_all(<span class="kw-2">&amp;</span>config_json_path.parent().unwrap()).is_ok() {
+                    <span class="kw">if let </span><span class="prelude-val">Err</span>(e) = fs::write(<span class="kw-2">&amp;</span>config_json_path, <span class="kw-2">&amp;</span>raw_data) {
+                        <span class="macro">log::debug!</span>(<span class="string">&quot;failed to write config.json cache: {}&quot;</span>, e);
+                    }
+                }
+                Poll::Ready(<span class="prelude-val">Ok</span>(<span class="self">self</span>.registry_config.clone()))
+            }
+            LoadResponse::NotFound =&gt; {
+                Poll::Ready(<span class="prelude-val">Err</span>(<span class="macro">anyhow::anyhow!</span>(<span class="string">&quot;config.json not found in registry&quot;</span>)))
+            }
+            LoadResponse::CacheValid =&gt; {
+                <span class="macro">panic!</span>(<span class="string">&quot;config.json is not stored in the index cache&quot;</span>)
+            }
+        }
+    }
+
+    <span class="kw">fn </span>invalidate_cache(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+        <span class="comment">// Actually updating the index is more or less a no-op for this implementation.
+        // All it does is ensure that a subsequent load will double-check files with the
+        // server rather than rely on a locally cached copy of the index files.
+        </span><span class="macro">debug!</span>(<span class="string">&quot;invalidated index cache&quot;</span>);
+        <span class="self">self</span>.fresh.clear();
+        <span class="self">self</span>.requested_update = <span class="bool-val">true</span>;
+    }
+
+    <span class="kw">fn </span>download(<span class="kw-2">&amp;mut </span><span class="self">self</span>, pkg: PackageId, checksum: <span class="kw-2">&amp;</span>str) -&gt; CargoResult&lt;MaybeLock&gt; {
+        <span class="kw">let </span>registry_config = <span class="kw">loop </span>{
+            <span class="kw">match </span><span class="self">self</span>.config()<span class="question-mark">? </span>{
+                Poll::Pending =&gt; <span class="self">self</span>.block_until_ready()<span class="question-mark">?</span>,
+                Poll::Ready(cfg) =&gt; <span class="kw">break </span>cfg.unwrap(),
+            }
+        };
+        download::download(
+            <span class="kw-2">&amp;</span><span class="self">self</span>.cache_path,
+            <span class="kw-2">&amp;</span><span class="self">self</span>.config,
+            pkg,
+            checksum,
+            registry_config,
+        )
+    }
+
+    <span class="kw">fn </span>finish_download(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        pkg: PackageId,
+        checksum: <span class="kw-2">&amp;</span>str,
+        data: <span class="kw-2">&amp;</span>[u8],
+    ) -&gt; CargoResult&lt;File&gt; {
+        download::finish_download(<span class="kw-2">&amp;</span><span class="self">self</span>.cache_path, <span class="kw-2">&amp;</span><span class="self">self</span>.config, pkg, checksum, data)
+    }
+
+    <span class="kw">fn </span>is_crate_downloaded(<span class="kw-2">&amp;</span><span class="self">self</span>, pkg: PackageId) -&gt; bool {
+        download::is_crate_downloaded(<span class="kw-2">&amp;</span><span class="self">self</span>.cache_path, <span class="kw-2">&amp;</span><span class="self">self</span>.config, pkg)
+    }
+
+    <span class="kw">fn </span>block_until_ready(<span class="kw-2">&amp;mut </span><span class="self">self</span>) -&gt; CargoResult&lt;()&gt; {
+        <span class="macro">trace!</span>(
+            <span class="string">&quot;block_until_ready: {} transfers pending&quot;</span>,
+            <span class="self">self</span>.downloads.pending.len()
+        );
+        <span class="self">self</span>.downloads.blocking_calls += <span class="number">1</span>;
+
+        <span class="kw">loop </span>{
+            <span class="self">self</span>.handle_completed_downloads()<span class="question-mark">?</span>;
+
+            <span class="kw">let </span>remaining_in_multi = tls::set(<span class="kw-2">&amp;</span><span class="self">self</span>.downloads, || {
+                <span class="self">self</span>.multi
+                    .perform()
+                    .with_context(|| <span class="string">&quot;failed to perform http requests&quot;</span>)
+            })<span class="question-mark">?</span>;
+            <span class="macro">trace!</span>(<span class="string">&quot;{} transfers remaining&quot;</span>, remaining_in_multi);
+
+            <span class="kw">if </span>remaining_in_multi == <span class="number">0 </span>{
+                <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+            }
+
+            <span class="comment">// We have no more replies to provide the caller with,
+            // so we need to wait until cURL has something new for us.
+            </span><span class="kw">let </span>timeout = <span class="self">self
+                </span>.multi
+                .get_timeout()<span class="question-mark">?
+                </span>.unwrap_or_else(|| Duration::new(<span class="number">1</span>, <span class="number">0</span>));
+            <span class="self">self</span>.multi
+                .wait(<span class="kw-2">&amp;mut </span>[], timeout)
+                .with_context(|| <span class="string">&quot;failed to wait on curl `Multi`&quot;</span>)<span class="question-mark">?</span>;
+        }
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;cfg</span>&gt; Downloads&lt;<span class="lifetime">&#39;cfg</span>&gt; {
+    <span class="kw">fn </span>tick(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; CargoResult&lt;()&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>progress = <span class="self">self</span>.progress.borrow_mut();
+        <span class="kw">let </span>progress = progress.as_mut().unwrap();
+
+        <span class="comment">// Since the sparse protocol discovers dependencies as it goes,
+        // it&#39;s not possible to get an accurate progress indication.
+        //
+        // As an approximation, we assume that the depth of the dependency graph
+        // is fixed, and base the progress on how many times the caller has asked
+        // for blocking. If there are actually additional dependencies, the progress
+        // bar will get stuck. If there are fewer dependencies, it will disappear
+        // early. It will never go backwards.
+        //
+        // The status text also contains the number of completed &amp; pending requests, which
+        // gives an better indication of forward progress.
+        </span><span class="kw">let </span>approximate_tree_depth = <span class="number">10</span>;
+
+        progress.tick(
+            <span class="self">self</span>.blocking_calls.min(approximate_tree_depth),
+            approximate_tree_depth + <span class="number">1</span>,
+            <span class="kw-2">&amp;</span><span class="macro">format!</span>(
+                <span class="string">&quot; {} complete; {} pending&quot;</span>,
+                <span class="self">self</span>.downloads_finished,
+                <span class="self">self</span>.pending.len()
+            ),
+        )
+    }
+}
+
+<span class="kw">mod </span>tls {
+    <span class="kw">use </span><span class="kw">super</span>::Downloads;
+    <span class="kw">use </span>std::cell::Cell;
+
+    <span class="macro">thread_local!</span>(<span class="kw">static </span>PTR: Cell&lt;usize&gt; = Cell::new(<span class="number">0</span>));
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>with&lt;R&gt;(f: <span class="kw">impl </span>FnOnce(<span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>Downloads&lt;<span class="lifetime">&#39;_</span>&gt;&gt;) -&gt; R) -&gt; R {
+        <span class="kw">let </span>ptr = PTR.with(|p| p.get());
+        <span class="kw">if </span>ptr == <span class="number">0 </span>{
+            f(<span class="prelude-val">None</span>)
+        } <span class="kw">else </span>{
+            <span class="comment">// Safety: * `ptr` is only set by `set` below which ensures the type is correct.
+            </span><span class="kw">let </span>ptr = <span class="kw">unsafe </span>{ <span class="kw-2">&amp;*</span>(ptr <span class="kw">as </span><span class="kw-2">*const </span>Downloads&lt;<span class="lifetime">&#39;_</span>&gt;) };
+            f(<span class="prelude-val">Some</span>(ptr))
+        }
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>set&lt;R&gt;(dl: <span class="kw-2">&amp;</span>Downloads&lt;<span class="lifetime">&#39;_</span>&gt;, f: <span class="kw">impl </span>FnOnce() -&gt; R) -&gt; R {
+        <span class="kw">struct </span>Reset&lt;<span class="lifetime">&#39;a</span>, T: Copy&gt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Cell&lt;T&gt;, T);
+
+        <span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, T: Copy&gt; Drop <span class="kw">for </span>Reset&lt;<span class="lifetime">&#39;a</span>, T&gt; {
+            <span class="kw">fn </span>drop(<span class="kw-2">&amp;mut </span><span class="self">self</span>) {
+                <span class="self">self</span>.<span class="number">0</span>.set(<span class="self">self</span>.<span class="number">1</span>);
+            }
+        }
+
+        PTR.with(|p| {
+            <span class="kw">let </span>_reset = Reset(p, p.get());
+            p.set(dl <span class="kw">as </span><span class="kw-2">*const </span>Downloads&lt;<span class="lifetime">&#39;_</span>&gt; <span class="kw">as </span>usize);
+            f()
+        })
+    }
+}
+</code></pre></div>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="cargo" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

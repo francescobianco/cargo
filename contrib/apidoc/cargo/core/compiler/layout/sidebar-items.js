@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["Layout","Contains the paths of all target output locations."]]};

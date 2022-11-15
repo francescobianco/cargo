@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":[["Lto","Possible ways to run rustc and request various parts of LTO."]],"fn":[["calculate",""],["generate",""],["lto_when_needs_object","Lto setting to use when this unit needs object code."],["needs_object","Whether or not any of these crate types need object code."]]};

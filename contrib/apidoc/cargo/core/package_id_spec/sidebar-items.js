@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["PackageIdSpec","Some or all of the data required to identify a package:"]]};

@@ -1,0 +1,1440 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/cargo/core/resolver/encode.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>encode.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../../normalize.css"><link rel="stylesheet" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../../ayu.css" disabled><link rel="stylesheet" href="../../../../dark.css" disabled><link rel="stylesheet" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../source-script.js"></script><script defer src="../../../../source-files.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../cargo/index.html"><div class="logo-container"><img class="rust-logo" src="../../../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../../cargo/index.html"><div class="logo-container"><img class="rust-logo" src="../../../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../../cargo/index.html"><img class="rust-logo" src="../../../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<span id="2">2</span>
+<span id="3">3</span>
+<span id="4">4</span>
+<span id="5">5</span>
+<span id="6">6</span>
+<span id="7">7</span>
+<span id="8">8</span>
+<span id="9">9</span>
+<span id="10">10</span>
+<span id="11">11</span>
+<span id="12">12</span>
+<span id="13">13</span>
+<span id="14">14</span>
+<span id="15">15</span>
+<span id="16">16</span>
+<span id="17">17</span>
+<span id="18">18</span>
+<span id="19">19</span>
+<span id="20">20</span>
+<span id="21">21</span>
+<span id="22">22</span>
+<span id="23">23</span>
+<span id="24">24</span>
+<span id="25">25</span>
+<span id="26">26</span>
+<span id="27">27</span>
+<span id="28">28</span>
+<span id="29">29</span>
+<span id="30">30</span>
+<span id="31">31</span>
+<span id="32">32</span>
+<span id="33">33</span>
+<span id="34">34</span>
+<span id="35">35</span>
+<span id="36">36</span>
+<span id="37">37</span>
+<span id="38">38</span>
+<span id="39">39</span>
+<span id="40">40</span>
+<span id="41">41</span>
+<span id="42">42</span>
+<span id="43">43</span>
+<span id="44">44</span>
+<span id="45">45</span>
+<span id="46">46</span>
+<span id="47">47</span>
+<span id="48">48</span>
+<span id="49">49</span>
+<span id="50">50</span>
+<span id="51">51</span>
+<span id="52">52</span>
+<span id="53">53</span>
+<span id="54">54</span>
+<span id="55">55</span>
+<span id="56">56</span>
+<span id="57">57</span>
+<span id="58">58</span>
+<span id="59">59</span>
+<span id="60">60</span>
+<span id="61">61</span>
+<span id="62">62</span>
+<span id="63">63</span>
+<span id="64">64</span>
+<span id="65">65</span>
+<span id="66">66</span>
+<span id="67">67</span>
+<span id="68">68</span>
+<span id="69">69</span>
+<span id="70">70</span>
+<span id="71">71</span>
+<span id="72">72</span>
+<span id="73">73</span>
+<span id="74">74</span>
+<span id="75">75</span>
+<span id="76">76</span>
+<span id="77">77</span>
+<span id="78">78</span>
+<span id="79">79</span>
+<span id="80">80</span>
+<span id="81">81</span>
+<span id="82">82</span>
+<span id="83">83</span>
+<span id="84">84</span>
+<span id="85">85</span>
+<span id="86">86</span>
+<span id="87">87</span>
+<span id="88">88</span>
+<span id="89">89</span>
+<span id="90">90</span>
+<span id="91">91</span>
+<span id="92">92</span>
+<span id="93">93</span>
+<span id="94">94</span>
+<span id="95">95</span>
+<span id="96">96</span>
+<span id="97">97</span>
+<span id="98">98</span>
+<span id="99">99</span>
+<span id="100">100</span>
+<span id="101">101</span>
+<span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
+<span id="108">108</span>
+<span id="109">109</span>
+<span id="110">110</span>
+<span id="111">111</span>
+<span id="112">112</span>
+<span id="113">113</span>
+<span id="114">114</span>
+<span id="115">115</span>
+<span id="116">116</span>
+<span id="117">117</span>
+<span id="118">118</span>
+<span id="119">119</span>
+<span id="120">120</span>
+<span id="121">121</span>
+<span id="122">122</span>
+<span id="123">123</span>
+<span id="124">124</span>
+<span id="125">125</span>
+<span id="126">126</span>
+<span id="127">127</span>
+<span id="128">128</span>
+<span id="129">129</span>
+<span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
+<span id="133">133</span>
+<span id="134">134</span>
+<span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
+<span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
+<span id="164">164</span>
+<span id="165">165</span>
+<span id="166">166</span>
+<span id="167">167</span>
+<span id="168">168</span>
+<span id="169">169</span>
+<span id="170">170</span>
+<span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
+<span id="177">177</span>
+<span id="178">178</span>
+<span id="179">179</span>
+<span id="180">180</span>
+<span id="181">181</span>
+<span id="182">182</span>
+<span id="183">183</span>
+<span id="184">184</span>
+<span id="185">185</span>
+<span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
+<span id="338">338</span>
+<span id="339">339</span>
+<span id="340">340</span>
+<span id="341">341</span>
+<span id="342">342</span>
+<span id="343">343</span>
+<span id="344">344</span>
+<span id="345">345</span>
+<span id="346">346</span>
+<span id="347">347</span>
+<span id="348">348</span>
+<span id="349">349</span>
+<span id="350">350</span>
+<span id="351">351</span>
+<span id="352">352</span>
+<span id="353">353</span>
+<span id="354">354</span>
+<span id="355">355</span>
+<span id="356">356</span>
+<span id="357">357</span>
+<span id="358">358</span>
+<span id="359">359</span>
+<span id="360">360</span>
+<span id="361">361</span>
+<span id="362">362</span>
+<span id="363">363</span>
+<span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
+<span id="367">367</span>
+<span id="368">368</span>
+<span id="369">369</span>
+<span id="370">370</span>
+<span id="371">371</span>
+<span id="372">372</span>
+<span id="373">373</span>
+<span id="374">374</span>
+<span id="375">375</span>
+<span id="376">376</span>
+<span id="377">377</span>
+<span id="378">378</span>
+<span id="379">379</span>
+<span id="380">380</span>
+<span id="381">381</span>
+<span id="382">382</span>
+<span id="383">383</span>
+<span id="384">384</span>
+<span id="385">385</span>
+<span id="386">386</span>
+<span id="387">387</span>
+<span id="388">388</span>
+<span id="389">389</span>
+<span id="390">390</span>
+<span id="391">391</span>
+<span id="392">392</span>
+<span id="393">393</span>
+<span id="394">394</span>
+<span id="395">395</span>
+<span id="396">396</span>
+<span id="397">397</span>
+<span id="398">398</span>
+<span id="399">399</span>
+<span id="400">400</span>
+<span id="401">401</span>
+<span id="402">402</span>
+<span id="403">403</span>
+<span id="404">404</span>
+<span id="405">405</span>
+<span id="406">406</span>
+<span id="407">407</span>
+<span id="408">408</span>
+<span id="409">409</span>
+<span id="410">410</span>
+<span id="411">411</span>
+<span id="412">412</span>
+<span id="413">413</span>
+<span id="414">414</span>
+<span id="415">415</span>
+<span id="416">416</span>
+<span id="417">417</span>
+<span id="418">418</span>
+<span id="419">419</span>
+<span id="420">420</span>
+<span id="421">421</span>
+<span id="422">422</span>
+<span id="423">423</span>
+<span id="424">424</span>
+<span id="425">425</span>
+<span id="426">426</span>
+<span id="427">427</span>
+<span id="428">428</span>
+<span id="429">429</span>
+<span id="430">430</span>
+<span id="431">431</span>
+<span id="432">432</span>
+<span id="433">433</span>
+<span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
+<span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
+<span id="441">441</span>
+<span id="442">442</span>
+<span id="443">443</span>
+<span id="444">444</span>
+<span id="445">445</span>
+<span id="446">446</span>
+<span id="447">447</span>
+<span id="448">448</span>
+<span id="449">449</span>
+<span id="450">450</span>
+<span id="451">451</span>
+<span id="452">452</span>
+<span id="453">453</span>
+<span id="454">454</span>
+<span id="455">455</span>
+<span id="456">456</span>
+<span id="457">457</span>
+<span id="458">458</span>
+<span id="459">459</span>
+<span id="460">460</span>
+<span id="461">461</span>
+<span id="462">462</span>
+<span id="463">463</span>
+<span id="464">464</span>
+<span id="465">465</span>
+<span id="466">466</span>
+<span id="467">467</span>
+<span id="468">468</span>
+<span id="469">469</span>
+<span id="470">470</span>
+<span id="471">471</span>
+<span id="472">472</span>
+<span id="473">473</span>
+<span id="474">474</span>
+<span id="475">475</span>
+<span id="476">476</span>
+<span id="477">477</span>
+<span id="478">478</span>
+<span id="479">479</span>
+<span id="480">480</span>
+<span id="481">481</span>
+<span id="482">482</span>
+<span id="483">483</span>
+<span id="484">484</span>
+<span id="485">485</span>
+<span id="486">486</span>
+<span id="487">487</span>
+<span id="488">488</span>
+<span id="489">489</span>
+<span id="490">490</span>
+<span id="491">491</span>
+<span id="492">492</span>
+<span id="493">493</span>
+<span id="494">494</span>
+<span id="495">495</span>
+<span id="496">496</span>
+<span id="497">497</span>
+<span id="498">498</span>
+<span id="499">499</span>
+<span id="500">500</span>
+<span id="501">501</span>
+<span id="502">502</span>
+<span id="503">503</span>
+<span id="504">504</span>
+<span id="505">505</span>
+<span id="506">506</span>
+<span id="507">507</span>
+<span id="508">508</span>
+<span id="509">509</span>
+<span id="510">510</span>
+<span id="511">511</span>
+<span id="512">512</span>
+<span id="513">513</span>
+<span id="514">514</span>
+<span id="515">515</span>
+<span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
+<span id="519">519</span>
+<span id="520">520</span>
+<span id="521">521</span>
+<span id="522">522</span>
+<span id="523">523</span>
+<span id="524">524</span>
+<span id="525">525</span>
+<span id="526">526</span>
+<span id="527">527</span>
+<span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
+<span id="531">531</span>
+<span id="532">532</span>
+<span id="533">533</span>
+<span id="534">534</span>
+<span id="535">535</span>
+<span id="536">536</span>
+<span id="537">537</span>
+<span id="538">538</span>
+<span id="539">539</span>
+<span id="540">540</span>
+<span id="541">541</span>
+<span id="542">542</span>
+<span id="543">543</span>
+<span id="544">544</span>
+<span id="545">545</span>
+<span id="546">546</span>
+<span id="547">547</span>
+<span id="548">548</span>
+<span id="549">549</span>
+<span id="550">550</span>
+<span id="551">551</span>
+<span id="552">552</span>
+<span id="553">553</span>
+<span id="554">554</span>
+<span id="555">555</span>
+<span id="556">556</span>
+<span id="557">557</span>
+<span id="558">558</span>
+<span id="559">559</span>
+<span id="560">560</span>
+<span id="561">561</span>
+<span id="562">562</span>
+<span id="563">563</span>
+<span id="564">564</span>
+<span id="565">565</span>
+<span id="566">566</span>
+<span id="567">567</span>
+<span id="568">568</span>
+<span id="569">569</span>
+<span id="570">570</span>
+<span id="571">571</span>
+<span id="572">572</span>
+<span id="573">573</span>
+<span id="574">574</span>
+<span id="575">575</span>
+<span id="576">576</span>
+<span id="577">577</span>
+<span id="578">578</span>
+<span id="579">579</span>
+<span id="580">580</span>
+<span id="581">581</span>
+<span id="582">582</span>
+<span id="583">583</span>
+<span id="584">584</span>
+<span id="585">585</span>
+<span id="586">586</span>
+<span id="587">587</span>
+<span id="588">588</span>
+<span id="589">589</span>
+<span id="590">590</span>
+<span id="591">591</span>
+<span id="592">592</span>
+<span id="593">593</span>
+<span id="594">594</span>
+<span id="595">595</span>
+<span id="596">596</span>
+<span id="597">597</span>
+<span id="598">598</span>
+<span id="599">599</span>
+<span id="600">600</span>
+<span id="601">601</span>
+<span id="602">602</span>
+<span id="603">603</span>
+<span id="604">604</span>
+<span id="605">605</span>
+<span id="606">606</span>
+<span id="607">607</span>
+<span id="608">608</span>
+<span id="609">609</span>
+<span id="610">610</span>
+<span id="611">611</span>
+<span id="612">612</span>
+<span id="613">613</span>
+<span id="614">614</span>
+<span id="615">615</span>
+<span id="616">616</span>
+<span id="617">617</span>
+<span id="618">618</span>
+<span id="619">619</span>
+<span id="620">620</span>
+<span id="621">621</span>
+<span id="622">622</span>
+<span id="623">623</span>
+<span id="624">624</span>
+<span id="625">625</span>
+<span id="626">626</span>
+<span id="627">627</span>
+<span id="628">628</span>
+<span id="629">629</span>
+<span id="630">630</span>
+<span id="631">631</span>
+<span id="632">632</span>
+<span id="633">633</span>
+<span id="634">634</span>
+<span id="635">635</span>
+<span id="636">636</span>
+<span id="637">637</span>
+<span id="638">638</span>
+<span id="639">639</span>
+<span id="640">640</span>
+<span id="641">641</span>
+<span id="642">642</span>
+<span id="643">643</span>
+<span id="644">644</span>
+<span id="645">645</span>
+<span id="646">646</span>
+<span id="647">647</span>
+<span id="648">648</span>
+<span id="649">649</span>
+<span id="650">650</span>
+<span id="651">651</span>
+<span id="652">652</span>
+<span id="653">653</span>
+<span id="654">654</span>
+<span id="655">655</span>
+<span id="656">656</span>
+<span id="657">657</span>
+<span id="658">658</span>
+<span id="659">659</span>
+<span id="660">660</span>
+<span id="661">661</span>
+<span id="662">662</span>
+<span id="663">663</span>
+<span id="664">664</span>
+<span id="665">665</span>
+<span id="666">666</span>
+<span id="667">667</span>
+<span id="668">668</span>
+<span id="669">669</span>
+<span id="670">670</span>
+<span id="671">671</span>
+<span id="672">672</span>
+<span id="673">673</span>
+<span id="674">674</span>
+<span id="675">675</span>
+<span id="676">676</span>
+<span id="677">677</span>
+<span id="678">678</span>
+<span id="679">679</span>
+<span id="680">680</span>
+<span id="681">681</span>
+<span id="682">682</span>
+<span id="683">683</span>
+<span id="684">684</span>
+<span id="685">685</span>
+<span id="686">686</span>
+<span id="687">687</span>
+<span id="688">688</span>
+<span id="689">689</span>
+<span id="690">690</span>
+<span id="691">691</span>
+<span id="692">692</span>
+<span id="693">693</span>
+<span id="694">694</span>
+<span id="695">695</span>
+<span id="696">696</span>
+<span id="697">697</span>
+<span id="698">698</span>
+<span id="699">699</span>
+<span id="700">700</span>
+<span id="701">701</span>
+<span id="702">702</span>
+<span id="703">703</span>
+<span id="704">704</span>
+<span id="705">705</span>
+<span id="706">706</span>
+<span id="707">707</span>
+<span id="708">708</span>
+<span id="709">709</span>
+<span id="710">710</span>
+<span id="711">711</span>
+<span id="712">712</span>
+<span id="713">713</span>
+<span id="714">714</span>
+<span id="715">715</span>
+<span id="716">716</span>
+<span id="717">717</span>
+<span id="718">718</span>
+<span id="719">719</span>
+</pre><pre class="rust"><code><span class="doccomment">//! Definition of how to encode a `Resolve` into a TOML `Cargo.lock` file
+//!
+//! This module contains all machinery necessary to parse a `Resolve` from a
+//! `Cargo.lock` as well as serialize a `Resolve` to a `Cargo.lock`.
+//!
+//! ## Changing `Cargo.lock`
+//!
+//! In general Cargo is quite conservative about changing the format of
+//! `Cargo.lock`. Usage of new features in Cargo can change `Cargo.lock` at any
+//! time, but otherwise changing the serialization of `Cargo.lock` is a
+//! difficult operation to do that we typically avoid.
+//!
+//! The main problem with changing the format of `Cargo.lock` is that it can
+//! cause quite a bad experience for end users who use different versions of
+//! Cargo. If every PR to a project oscillates between the stable channel&#39;s
+//! encoding of Cargo.lock and the nightly channel&#39;s encoding then that&#39;s a
+//! pretty bad experience.
+//!
+//! We do, however, want to change `Cargo.lock` over time. (and we have!). To do
+//! this the rules that we currently have are:
+//!
+//! * Add support for the new format to Cargo. This involves code changes in
+//!   Cargo itself, likely by adding a new variant of `ResolveVersion` and
+//!   branching on that where necessary. This is accompanied with tests in the
+//!   `lockfile_compat` module.
+//!
+//!   * Do not update `ResolveVersion::default()`. The new lockfile format will
+//!     not be used yet.
+//!
+//!   * Preserve the new format if found. This means that if Cargo finds the new
+//!     version it&#39;ll keep using it, but otherwise it continues to use whatever
+//!     format it previously found.
+//!
+//! * Wait a &quot;long time&quot;. This is at least until the changes here hit stable
+//!   Rust. Often though we wait a little longer to let the changes percolate
+//!   into one or two older stable releases.
+//!
+//! * Change the return value of `ResolveVersion::default()` to the new format.
+//!   This will cause new lock files to use the latest encoding as well as
+//!   causing any operation which updates the lock file to update to the new
+//!   format.
+//!
+//! This migration scheme in general means that Cargo we&#39;ll get *support* for a
+//! new format into Cargo ASAP, but it won&#39;t be exercised yet (except in Cargo&#39;s
+//! own tests). Eventually when stable/beta/nightly all have support for the new
+//! format (and maybe a few previous stable versions) we flip the switch.
+//! Projects on nightly will quickly start seeing changes, but
+//! stable/beta/nightly will all understand this new format and will preserve
+//! it.
+//!
+//! While this does mean that projects&#39; `Cargo.lock` changes over time, it&#39;s
+//! typically a pretty minimal effort change that&#39;s just &quot;check in what&#39;s
+//! there&quot;.
+//!
+//! ## Historical changes to `Cargo.lock`
+//!
+//! Listed from most recent to oldest, these are some of the changes we&#39;ve made
+//! to `Cargo.lock`&#39;s serialization format:
+//!
+//! * A `version` marker is now at the top of the lock file which is a way for
+//!   super-old Cargos (at least since this was implemented) to give a formal
+//!   error if they see a lock file from a super-future Cargo. Additionally as
+//!   part of this change the encoding of `git` dependencies in lock files
+//!   changed where `branch = &quot;master&quot;` is now encoded with `branch=master`
+//!   instead of with nothing at all.
+//!
+//! * The entries in `dependencies` arrays have been shortened and the
+//!   `checksum` field now shows up directly in `[[package]]` instead of always
+//!   at the end of the file. The goal of this change was to ideally reduce
+//!   merge conflicts being generated on `Cargo.lock`. Updating a version of a
+//!   package now only updates two lines in the file, the checksum and the
+//!   version number, most of the time. Dependency edges are specified in a
+//!   compact form where possible where just the name is listed. The
+//!   version/source on dependency edges are only listed if necessary to
+//!   disambiguate which version or which source is in use.
+//!
+//! * A comment at the top of the file indicates that the file is a generated
+//!   file and contains the special symbol `@generated` to indicate to common
+//!   review tools that it&#39;s a generated file.
+//!
+//! * A `[root]` entry for the &quot;root crate&quot; has been removed and instead now
+//!   included in `[[package]]` like everything else.
+//!
+//! * All packages from registries contain a `checksum` which is a sha256
+//!   checksum of the tarball the package is associated with. This is all stored
+//!   in the `[metadata]` table of `Cargo.lock` which all versions of Cargo
+//!   since 1.0 have preserved. The goal of this was to start recording
+//!   checksums so mirror sources can be verified.
+//!
+//! ## Other oddities about `Cargo.lock`
+//!
+//! There&#39;s a few other miscellaneous weird things about `Cargo.lock` that you
+//! may want to be aware of when reading this file:
+//!
+//! * All packages have a `source` listed to indicate where they come from. For
+//!   `path` dependencies, however, no `source` is listed. There&#39;s no way we
+//!   could emit a filesystem path name and have that be portable across
+//!   systems, so all packages from a `path` are not listed with a `source`.
+//!   Note that this also means that all packages with `path` sources must have
+//!   unique names.
+//!
+//! * The `[metadata]` table in `Cargo.lock` is intended to be a generic mapping
+//!   of strings to strings that&#39;s simply preserved by Cargo. This was a very
+//!   early effort to be forward compatible against changes to `Cargo.lock`&#39;s
+//!   format. This is nowadays sort of deemed a bad idea though and we don&#39;t
+//!   really use it that much except for `checksum`s historically. It&#39;s not
+//!   really recommended to use this.
+//!
+//! * The actual literal on-disk serialiation is found in
+//!   `src/cargo/ops/lockfile.rs` which basically renders a `toml::Value` in a
+//!   special fashion to make sure we have strict control over the on-disk
+//!   format.
+
+</span><span class="kw">use super</span>::{Resolve, ResolveVersion};
+<span class="kw">use </span><span class="kw">crate</span>::core::{Dependency, GitReference, Package, PackageId, SourceId, Workspace};
+<span class="kw">use </span><span class="kw">crate</span>::util::errors::CargoResult;
+<span class="kw">use </span><span class="kw">crate</span>::util::interning::InternedString;
+<span class="kw">use </span><span class="kw">crate</span>::util::{internal, Graph};
+<span class="kw">use </span>anyhow::{bail, Context <span class="kw">as _</span>};
+<span class="kw">use </span>log::debug;
+<span class="kw">use </span>serde::de;
+<span class="kw">use </span>serde::ser;
+<span class="kw">use </span>serde::{Deserialize, Serialize};
+<span class="kw">use </span>std::collections::{BTreeMap, HashMap, HashSet};
+<span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::str::FromStr;
+
+<span class="doccomment">/// The `Cargo.lock` structure.
+</span><span class="attribute">#[derive(Serialize, Deserialize, Debug)]
+</span><span class="kw">pub struct </span>EncodableResolve {
+    version: <span class="prelude-ty">Option</span>&lt;u32&gt;,
+    package: <span class="prelude-ty">Option</span>&lt;Vec&lt;EncodableDependency&gt;&gt;,
+    <span class="doccomment">/// `root` is optional to allow backward compatibility.
+    </span>root: <span class="prelude-ty">Option</span>&lt;EncodableDependency&gt;,
+    metadata: <span class="prelude-ty">Option</span>&lt;Metadata&gt;,
+    <span class="attribute">#[serde(default, skip_serializing_if = <span class="string">&quot;Patch::is_empty&quot;</span>)]
+    </span>patch: Patch,
+}
+
+<span class="attribute">#[derive(Serialize, Deserialize, Debug, Default)]
+</span><span class="kw">struct </span>Patch {
+    unused: Vec&lt;EncodableDependency&gt;,
+}
+
+<span class="kw">pub type </span>Metadata = BTreeMap&lt;String, String&gt;;
+
+<span class="kw">impl </span>EncodableResolve {
+    <span class="doccomment">/// Convert a `Cargo.lock` to a Resolve.
+    ///
+    /// Note that this `Resolve` is not &quot;complete&quot;. For example, the
+    /// dependencies do not know the difference between regular/dev/build
+    /// dependencies, so they are not filled in. It also does not include
+    /// `features`. Care should be taken when using this Resolve. One of the
+    /// primary uses is to be used with `resolve_with_previous` to guide the
+    /// resolver to create a complete Resolve.
+    </span><span class="kw">pub fn </span>into_resolve(<span class="self">self</span>, original: <span class="kw-2">&amp;</span>str, ws: <span class="kw-2">&amp;</span>Workspace&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; CargoResult&lt;Resolve&gt; {
+        <span class="kw">let </span>path_deps = build_path_deps(ws)<span class="question-mark">?</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>checksums = HashMap::new();
+
+        <span class="kw">let </span><span class="kw-2">mut </span>version = <span class="kw">match </span><span class="self">self</span>.version {
+            <span class="prelude-val">Some</span>(<span class="number">3</span>) =&gt; ResolveVersion::V3,
+            <span class="prelude-val">Some</span>(n) =&gt; <span class="macro">bail!</span>(
+                <span class="string">&quot;lock file version `{}` was found, but this version of Cargo \
+                 does not understand this lock file, perhaps Cargo needs \
+                 to be updated?&quot;</span>,
+                n,
+            ),
+            <span class="comment">// Historically Cargo did not have a version indicator in lock
+            // files, so this could either be the V1 or V2 encoding. We assume
+            // an older format is being parsed until we see so otherwise.
+            </span><span class="prelude-val">None </span>=&gt; ResolveVersion::V1,
+        };
+
+        <span class="kw">let </span>packages = {
+            <span class="kw">let </span><span class="kw-2">mut </span>packages = <span class="self">self</span>.package.unwrap_or_default();
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(root) = <span class="self">self</span>.root {
+                packages.insert(<span class="number">0</span>, root);
+            }
+            packages
+        };
+
+        <span class="comment">// `PackageId`s in the lock file don&#39;t include the `source` part
+        // for workspace members, so we reconstruct proper IDs.
+        </span><span class="kw">let </span>live_pkgs = {
+            <span class="kw">let </span><span class="kw-2">mut </span>live_pkgs = HashMap::new();
+            <span class="kw">let </span><span class="kw-2">mut </span>all_pkgs = HashSet::new();
+            <span class="kw">for </span>pkg <span class="kw">in </span>packages.iter() {
+                <span class="kw">let </span>enc_id = EncodablePackageId {
+                    name: pkg.name.clone(),
+                    version: <span class="prelude-val">Some</span>(pkg.version.clone()),
+                    source: pkg.source,
+                };
+
+                <span class="kw">if </span>!all_pkgs.insert(enc_id.clone()) {
+                    <span class="macro">anyhow::bail!</span>(<span class="string">&quot;package `{}` is specified twice in the lockfile&quot;</span>, pkg.name);
+                }
+                <span class="kw">let </span>id = <span class="kw">match </span>pkg.source.as_ref().or_else(|| path_deps.get(<span class="kw-2">&amp;</span>pkg.name)) {
+                    <span class="comment">// We failed to find a local package in the workspace.
+                    // It must have been removed and should be ignored.
+                    </span><span class="prelude-val">None </span>=&gt; {
+                        <span class="macro">debug!</span>(<span class="string">&quot;path dependency now missing {} v{}&quot;</span>, pkg.name, pkg.version);
+                        <span class="kw">continue</span>;
+                    }
+                    <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>source) =&gt; PackageId::new(<span class="kw-2">&amp;</span>pkg.name, <span class="kw-2">&amp;</span>pkg.version, source)<span class="question-mark">?</span>,
+                };
+
+                <span class="comment">// If a package has a checksum listed directly on it then record
+                // that here, and we also bump our version up to 2 since V1
+                // didn&#39;t ever encode this field.
+                </span><span class="kw">if let </span><span class="prelude-val">Some</span>(cksum) = <span class="kw-2">&amp;</span>pkg.checksum {
+                    version = version.max(ResolveVersion::V2);
+                    checksums.insert(id, <span class="prelude-val">Some</span>(cksum.clone()));
+                }
+
+                <span class="macro">assert!</span>(live_pkgs.insert(enc_id, (id, pkg)).is_none())
+            }
+            live_pkgs
+        };
+
+        <span class="comment">// When decoding a V2 version the edges in `dependencies` aren&#39;t
+        // guaranteed to have either version or source information. This `map`
+        // is used to find package ids even if dependencies have missing
+        // information. This map is from name to version to source to actual
+        // package ID. (various levels to drill down step by step)
+        </span><span class="kw">let </span><span class="kw-2">mut </span>map = HashMap::new();
+        <span class="kw">for </span>(id, <span class="kw">_</span>) <span class="kw">in </span>live_pkgs.values() {
+            map.entry(id.name().as_str())
+                .or_insert_with(HashMap::new)
+                .entry(id.version().to_string())
+                .or_insert_with(HashMap::new)
+                .insert(id.source_id(), <span class="kw-2">*</span>id);
+        }
+
+        <span class="kw">let </span><span class="kw-2">mut </span>lookup_id = |enc_id: <span class="kw-2">&amp;</span>EncodablePackageId| -&gt; <span class="prelude-ty">Option</span>&lt;PackageId&gt; {
+            <span class="comment">// The name of this package should always be in the larger list of
+            // all packages.
+            </span><span class="kw">let </span>by_version = map.get(enc_id.name.as_str())<span class="question-mark">?</span>;
+
+            <span class="comment">// If the version is provided, look that up. Otherwise if the
+            // version isn&#39;t provided this is a V2 manifest and we should only
+            // have one version for this name. If we have more than one version
+            // for the name then it&#39;s ambiguous which one we&#39;d use. That
+            // shouldn&#39;t ever actually happen but in theory bad git merges could
+            // produce invalid lock files, so silently ignore these cases.
+            </span><span class="kw">let </span>by_source = <span class="kw">match </span><span class="kw-2">&amp;</span>enc_id.version {
+                <span class="prelude-val">Some</span>(version) =&gt; by_version.get(version)<span class="question-mark">?</span>,
+                <span class="prelude-val">None </span>=&gt; {
+                    version = version.max(ResolveVersion::V2);
+                    <span class="kw">if </span>by_version.len() == <span class="number">1 </span>{
+                        by_version.values().next().unwrap()
+                    } <span class="kw">else </span>{
+                        <span class="kw">return </span><span class="prelude-val">None</span>;
+                    }
+                }
+            };
+
+            <span class="comment">// This is basically the same as above. Note though that `source` is
+            // always missing for path dependencies regardless of serialization
+            // format. That means we have to handle the `None` case a bit more
+            // carefully.
+            </span><span class="kw">match </span><span class="kw-2">&amp;</span>enc_id.source {
+                <span class="prelude-val">Some</span>(source) =&gt; by_source.get(source).cloned(),
+                <span class="prelude-val">None </span>=&gt; {
+                    <span class="comment">// Look through all possible packages ids for this
+                    // name/version. If there&#39;s only one `path` dependency then
+                    // we are hardcoded to use that since `path` dependencies
+                    // can&#39;t have a source listed.
+                    </span><span class="kw">let </span><span class="kw-2">mut </span>path_packages = by_source.values().filter(|p| p.source_id().is_path());
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(path) = path_packages.next() {
+                        <span class="kw">if </span>path_packages.next().is_some() {
+                            <span class="kw">return </span><span class="prelude-val">None</span>;
+                        }
+                        <span class="prelude-val">Some</span>(<span class="kw-2">*</span>path)
+
+                    <span class="comment">// ... otherwise if there&#39;s only one then we must be
+                    // implicitly using that one due to a V2 serialization of
+                    // the lock file
+                    </span>} <span class="kw">else if </span>by_source.len() == <span class="number">1 </span>{
+                        <span class="kw">let </span>id = by_source.values().next().unwrap();
+                        version = version.max(ResolveVersion::V2);
+                        <span class="prelude-val">Some</span>(<span class="kw-2">*</span>id)
+
+                    <span class="comment">// ... and failing that we probably had a bad git merge of
+                    // `Cargo.lock` or something like that, so just ignore this.
+                    </span>} <span class="kw">else </span>{
+                        <span class="prelude-val">None
+                    </span>}
+                }
+            }
+        };
+
+        <span class="kw">let </span><span class="kw-2">mut </span>g = Graph::new();
+
+        <span class="kw">for </span><span class="kw-2">&amp;</span>(<span class="kw-2">ref </span>id, <span class="kw">_</span>) <span class="kw">in </span>live_pkgs.values() {
+            g.add(<span class="kw-2">*</span>id);
+        }
+
+        <span class="kw">for </span><span class="kw-2">&amp;</span>(<span class="kw-2">ref </span>id, pkg) <span class="kw">in </span>live_pkgs.values() {
+            <span class="kw">let </span>deps = <span class="kw">match </span>pkg.dependencies {
+                <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>deps) =&gt; deps,
+                <span class="prelude-val">None </span>=&gt; <span class="kw">continue</span>,
+            };
+
+            <span class="kw">for </span>edge <span class="kw">in </span>deps.iter() {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(to_depend_on) = lookup_id(edge) {
+                    g.link(<span class="kw-2">*</span>id, to_depend_on);
+                }
+            }
+        }
+
+        <span class="kw">let </span>replacements = {
+            <span class="kw">let </span><span class="kw-2">mut </span>replacements = HashMap::new();
+            <span class="kw">for </span><span class="kw-2">&amp;</span>(<span class="kw-2">ref </span>id, pkg) <span class="kw">in </span>live_pkgs.values() {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(<span class="kw-2">ref </span>replace) = pkg.replace {
+                    <span class="macro">assert!</span>(pkg.dependencies.is_none());
+                    <span class="kw">if let </span><span class="prelude-val">Some</span>(replace_id) = lookup_id(replace) {
+                        replacements.insert(<span class="kw-2">*</span>id, replace_id);
+                    }
+                }
+            }
+            replacements
+        };
+
+        <span class="kw">let </span><span class="kw-2">mut </span>metadata = <span class="self">self</span>.metadata.unwrap_or_default();
+
+        <span class="comment">// In the V1 serialization formats all checksums were listed in the lock
+        // file in the `[metadata]` section, so if we&#39;re still V1 then look for
+        // that here.
+        </span><span class="kw">let </span>prefix = <span class="string">&quot;checksum &quot;</span>;
+        <span class="kw">let </span><span class="kw-2">mut </span>to_remove = Vec::new();
+        <span class="kw">for </span>(k, v) <span class="kw">in </span>metadata.iter().filter(|p| p.<span class="number">0</span>.starts_with(prefix)) {
+            to_remove.push(k.to_string());
+            <span class="kw">let </span>k = <span class="kw-2">&amp;</span>k[prefix.len()..];
+            <span class="kw">let </span>enc_id: EncodablePackageId = k
+                .parse()
+                .with_context(|| internal(<span class="string">&quot;invalid encoding of checksum in lockfile&quot;</span>))<span class="question-mark">?</span>;
+            <span class="kw">let </span>id = <span class="kw">match </span>lookup_id(<span class="kw-2">&amp;</span>enc_id) {
+                <span class="prelude-val">Some</span>(id) =&gt; id,
+                <span class="kw">_ </span>=&gt; <span class="kw">continue</span>,
+            };
+
+            <span class="kw">let </span>v = <span class="kw">if </span>v == <span class="string">&quot;&lt;none&gt;&quot; </span>{
+                <span class="prelude-val">None
+            </span>} <span class="kw">else </span>{
+                <span class="prelude-val">Some</span>(v.to_string())
+            };
+            checksums.insert(id, v);
+        }
+        <span class="comment">// If `checksum` was listed in `[metadata]` but we were previously
+        // listed as `V2` then assume some sort of bad git merge happened, so
+        // discard all checksums and let&#39;s regenerate them later.
+        </span><span class="kw">if </span>!to_remove.is_empty() &amp;&amp; version &gt;= ResolveVersion::V2 {
+            checksums.drain();
+        }
+        <span class="kw">for </span>k <span class="kw">in </span>to_remove {
+            metadata.remove(<span class="kw-2">&amp;</span>k);
+        }
+
+        <span class="kw">let </span><span class="kw-2">mut </span>unused_patches = Vec::new();
+        <span class="kw">for </span>pkg <span class="kw">in </span><span class="self">self</span>.patch.unused {
+            <span class="kw">let </span>id = <span class="kw">match </span>pkg.source.as_ref().or_else(|| path_deps.get(<span class="kw-2">&amp;</span>pkg.name)) {
+                <span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>src) =&gt; PackageId::new(<span class="kw-2">&amp;</span>pkg.name, <span class="kw-2">&amp;</span>pkg.version, src)<span class="question-mark">?</span>,
+                <span class="prelude-val">None </span>=&gt; <span class="kw">continue</span>,
+            };
+            unused_patches.push(id);
+        }
+
+        <span class="comment">// We have a curious issue where in the &quot;v1 format&quot; we buggily had a
+        // trailing blank line at the end of lock files under some specific
+        // conditions.
+        //
+        // Cargo is trying to write new lockfies in the &quot;v2 format&quot; but if you
+        // have no dependencies, for example, then the lockfile encoded won&#39;t
+        // really have any indicator that it&#39;s in the new format (no
+        // dependencies or checksums listed). This means that if you type `cargo
+        // new` followed by `cargo build` it will generate a &quot;v2 format&quot; lock
+        // file since none previously existed. When reading this on the next
+        // `cargo build`, however, it generates a new lock file because when
+        // reading in that lockfile we think it&#39;s the v1 format.
+        //
+        // To help fix this issue we special case here. If our lockfile only has
+        // one trailing newline, not two, *and* it only has one package, then
+        // this is actually the v2 format.
+        </span><span class="kw">if </span>original.ends_with(<span class="string">&#39;\n&#39;</span>)
+            &amp;&amp; !original.ends_with(<span class="string">&quot;\n\n&quot;</span>)
+            &amp;&amp; version == ResolveVersion::V1
+            &amp;&amp; g.iter().count() == <span class="number">1
+        </span>{
+            version = ResolveVersion::V2;
+        }
+
+        <span class="prelude-val">Ok</span>(Resolve::new(
+            g,
+            replacements,
+            HashMap::new(),
+            checksums,
+            metadata,
+            unused_patches,
+            version,
+            HashMap::new(),
+        ))
+    }
+}
+
+<span class="kw">fn </span>build_path_deps(ws: <span class="kw-2">&amp;</span>Workspace&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; CargoResult&lt;HashMap&lt;String, SourceId&gt;&gt; {
+    <span class="comment">// If a crate is **not** a path source, then we&#39;re probably in a situation
+    // such as `cargo install` with a lock file from a remote dependency. In
+    // that case we don&#39;t need to fixup any path dependencies (as they&#39;re not
+    // actually path dependencies any more), so we ignore them.
+    </span><span class="kw">let </span>members = ws
+        .members()
+        .filter(|p| p.package_id().source_id().is_path())
+        .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+
+    <span class="kw">let </span><span class="kw-2">mut </span>ret = HashMap::new();
+    <span class="kw">let </span><span class="kw-2">mut </span>visited = HashSet::new();
+    <span class="kw">for </span>member <span class="kw">in </span>members.iter() {
+        ret.insert(
+            member.package_id().name().to_string(),
+            member.package_id().source_id(),
+        );
+        visited.insert(member.package_id().source_id());
+    }
+    <span class="kw">for </span>member <span class="kw">in </span>members.iter() {
+        build_pkg(member, ws, <span class="kw-2">&amp;mut </span>ret, <span class="kw-2">&amp;mut </span>visited);
+    }
+    <span class="kw">for </span>deps <span class="kw">in </span>ws.root_patch()<span class="question-mark">?</span>.values() {
+        <span class="kw">for </span>dep <span class="kw">in </span>deps {
+            build_dep(dep, ws, <span class="kw-2">&amp;mut </span>ret, <span class="kw-2">&amp;mut </span>visited);
+        }
+    }
+    <span class="kw">for </span><span class="kw-2">&amp;</span>(<span class="kw">_</span>, <span class="kw-2">ref </span>dep) <span class="kw">in </span>ws.root_replace() {
+        build_dep(dep, ws, <span class="kw-2">&amp;mut </span>ret, <span class="kw-2">&amp;mut </span>visited);
+    }
+
+    <span class="kw">return </span><span class="prelude-val">Ok</span>(ret);
+
+    <span class="kw">fn </span>build_pkg(
+        pkg: <span class="kw-2">&amp;</span>Package,
+        ws: <span class="kw-2">&amp;</span>Workspace&lt;<span class="lifetime">&#39;_</span>&gt;,
+        ret: <span class="kw-2">&amp;mut </span>HashMap&lt;String, SourceId&gt;,
+        visited: <span class="kw-2">&amp;mut </span>HashSet&lt;SourceId&gt;,
+    ) {
+        <span class="kw">for </span>dep <span class="kw">in </span>pkg.dependencies() {
+            build_dep(dep, ws, ret, visited);
+        }
+    }
+
+    <span class="kw">fn </span>build_dep(
+        dep: <span class="kw-2">&amp;</span>Dependency,
+        ws: <span class="kw-2">&amp;</span>Workspace&lt;<span class="lifetime">&#39;_</span>&gt;,
+        ret: <span class="kw-2">&amp;mut </span>HashMap&lt;String, SourceId&gt;,
+        visited: <span class="kw-2">&amp;mut </span>HashSet&lt;SourceId&gt;,
+    ) {
+        <span class="kw">let </span>id = dep.source_id();
+        <span class="kw">if </span>visited.contains(<span class="kw-2">&amp;</span>id) || !id.is_path() {
+            <span class="kw">return</span>;
+        }
+        <span class="kw">let </span>path = <span class="kw">match </span>id.url().to_file_path() {
+            <span class="prelude-val">Ok</span>(p) =&gt; p.join(<span class="string">&quot;Cargo.toml&quot;</span>),
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">return</span>,
+        };
+        <span class="kw">let </span>pkg = <span class="kw">match </span>ws.load(<span class="kw-2">&amp;</span>path) {
+            <span class="prelude-val">Ok</span>(p) =&gt; p,
+            <span class="prelude-val">Err</span>(<span class="kw">_</span>) =&gt; <span class="kw">return</span>,
+        };
+        ret.insert(pkg.name().to_string(), pkg.package_id().source_id());
+        visited.insert(pkg.package_id().source_id());
+        build_pkg(<span class="kw-2">&amp;</span>pkg, ws, ret, visited);
+    }
+}
+
+<span class="kw">impl </span>Patch {
+    <span class="kw">fn </span>is_empty(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="self">self</span>.unused.is_empty()
+    }
+}
+
+<span class="attribute">#[derive(Serialize, Deserialize, Debug, PartialOrd, Ord, PartialEq, Eq)]
+</span><span class="kw">pub struct </span>EncodableDependency {
+    name: String,
+    version: String,
+    source: <span class="prelude-ty">Option</span>&lt;SourceId&gt;,
+    checksum: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    dependencies: <span class="prelude-ty">Option</span>&lt;Vec&lt;EncodablePackageId&gt;&gt;,
+    replace: <span class="prelude-ty">Option</span>&lt;EncodablePackageId&gt;,
+}
+
+<span class="attribute">#[derive(Debug, PartialOrd, Ord, PartialEq, Eq, Hash, Clone)]
+</span><span class="kw">pub struct </span>EncodablePackageId {
+    name: String,
+    version: <span class="prelude-ty">Option</span>&lt;String&gt;,
+    source: <span class="prelude-ty">Option</span>&lt;SourceId&gt;,
+}
+
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>EncodablePackageId {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;{}&quot;</span>, <span class="self">self</span>.name)<span class="question-mark">?</span>;
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(s) = <span class="kw-2">&amp;</span><span class="self">self</span>.version {
+            <span class="macro">write!</span>(f, <span class="string">&quot; {}&quot;</span>, s)<span class="question-mark">?</span>;
+        }
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(s) = <span class="kw-2">&amp;</span><span class="self">self</span>.source {
+            <span class="macro">write!</span>(f, <span class="string">&quot; ({})&quot;</span>, s.as_url())<span class="question-mark">?</span>;
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+}
+
+<span class="kw">impl </span>FromStr <span class="kw">for </span>EncodablePackageId {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= anyhow::Error;
+
+    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; CargoResult&lt;EncodablePackageId&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>s = s.splitn(<span class="number">3</span>, <span class="string">&#39; &#39;</span>);
+        <span class="kw">let </span>name = s.next().unwrap();
+        <span class="kw">let </span>version = s.next();
+        <span class="kw">let </span>source_id = <span class="kw">match </span>s.next() {
+            <span class="prelude-val">Some</span>(s) =&gt; {
+                <span class="kw">if </span>s.starts_with(<span class="string">&#39;(&#39;</span>) &amp;&amp; s.ends_with(<span class="string">&#39;)&#39;</span>) {
+                    <span class="prelude-val">Some</span>(SourceId::from_url(<span class="kw-2">&amp;</span>s[<span class="number">1</span>..s.len() - <span class="number">1</span>])<span class="question-mark">?</span>)
+                } <span class="kw">else </span>{
+                    <span class="macro">anyhow::bail!</span>(<span class="string">&quot;invalid serialized PackageId&quot;</span>)
+                }
+            }
+            <span class="prelude-val">None </span>=&gt; <span class="prelude-val">None</span>,
+        };
+
+        <span class="prelude-val">Ok</span>(EncodablePackageId {
+            name: name.to_string(),
+            version: version.map(|v| v.to_string()),
+            source: source_id,
+        })
+    }
+}
+
+<span class="kw">impl </span>ser::Serialize <span class="kw">for </span>EncodablePackageId {
+    <span class="kw">fn </span>serialize&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, s: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+    <span class="kw">where
+        </span>S: ser::Serializer,
+    {
+        s.collect_str(<span class="self">self</span>)
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;de</span>&gt; de::Deserialize&lt;<span class="lifetime">&#39;de</span>&gt; <span class="kw">for </span>EncodablePackageId {
+    <span class="kw">fn </span>deserialize&lt;D&gt;(d: D) -&gt; <span class="prelude-ty">Result</span>&lt;EncodablePackageId, D::Error&gt;
+    <span class="kw">where
+        </span>D: de::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+    {
+        String::deserialize(d).and_then(|string| {
+            string
+                .parse::&lt;EncodablePackageId&gt;()
+                .map_err(de::Error::custom)
+        })
+    }
+}
+
+<span class="kw">impl </span>ser::Serialize <span class="kw">for </span>Resolve {
+    <span class="kw">fn </span>serialize&lt;S&gt;(<span class="kw-2">&amp;</span><span class="self">self</span>, s: S) -&gt; <span class="prelude-ty">Result</span>&lt;S::Ok, S::Error&gt;
+    <span class="kw">where
+        </span>S: ser::Serializer,
+    {
+        <span class="kw">let </span><span class="kw-2">mut </span>ids: Vec&lt;<span class="kw">_</span>&gt; = <span class="self">self</span>.iter().collect();
+        ids.sort();
+
+        <span class="kw">let </span>state = EncodeState::new(<span class="self">self</span>);
+
+        <span class="kw">let </span>encodable = ids
+            .iter()
+            .map(|<span class="kw-2">&amp;</span>id| encodable_resolve_node(id, <span class="self">self</span>, <span class="kw-2">&amp;</span>state))
+            .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+
+        <span class="kw">let </span><span class="kw-2">mut </span>metadata = <span class="self">self</span>.metadata().clone();
+
+        <span class="kw">if </span><span class="self">self</span>.version() == ResolveVersion::V1 {
+            <span class="kw">for </span><span class="kw-2">&amp;</span>id <span class="kw">in </span>ids.iter().filter(|id| !id.source_id().is_path()) {
+                <span class="kw">let </span>checksum = <span class="kw">match </span><span class="self">self</span>.checksums()[<span class="kw-2">&amp;</span>id] {
+                    <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>s) =&gt; <span class="kw-2">&amp;</span>s[..],
+                    <span class="prelude-val">None </span>=&gt; <span class="string">&quot;&lt;none&gt;&quot;</span>,
+                };
+                <span class="kw">let </span>id = encodable_package_id(id, <span class="kw-2">&amp;</span>state, <span class="self">self</span>.version());
+                metadata.insert(<span class="macro">format!</span>(<span class="string">&quot;checksum {}&quot;</span>, id.to_string()), checksum.to_string());
+            }
+        }
+
+        <span class="kw">let </span>metadata = <span class="kw">if </span>metadata.is_empty() {
+            <span class="prelude-val">None
+        </span>} <span class="kw">else </span>{
+            <span class="prelude-val">Some</span>(metadata)
+        };
+
+        <span class="kw">let </span>patch = Patch {
+            unused: <span class="self">self
+                </span>.unused_patches()
+                .iter()
+                .map(|id| EncodableDependency {
+                    name: id.name().to_string(),
+                    version: id.version().to_string(),
+                    source: encode_source(id.source_id()),
+                    dependencies: <span class="prelude-val">None</span>,
+                    replace: <span class="prelude-val">None</span>,
+                    checksum: <span class="kw">if </span><span class="self">self</span>.version() &gt;= ResolveVersion::V2 {
+                        <span class="self">self</span>.checksums().get(id).and_then(|x| x.clone())
+                    } <span class="kw">else </span>{
+                        <span class="prelude-val">None
+                    </span>},
+                })
+                .collect(),
+        };
+        EncodableResolve {
+            package: <span class="prelude-val">Some</span>(encodable),
+            root: <span class="prelude-val">None</span>,
+            metadata,
+            patch,
+            version: <span class="kw">match </span><span class="self">self</span>.version() {
+                ResolveVersion::V3 =&gt; <span class="prelude-val">Some</span>(<span class="number">3</span>),
+                ResolveVersion::V2 | ResolveVersion::V1 =&gt; <span class="prelude-val">None</span>,
+            },
+        }
+        .serialize(s)
+    }
+}
+
+<span class="kw">pub struct </span>EncodeState&lt;<span class="lifetime">&#39;a</span>&gt; {
+    counts: <span class="prelude-ty">Option</span>&lt;HashMap&lt;InternedString, HashMap&lt;<span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>semver::Version, usize&gt;&gt;&gt;,
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>&gt; EncodeState&lt;<span class="lifetime">&#39;a</span>&gt; {
+    <span class="kw">pub fn </span>new(resolve: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Resolve) -&gt; EncodeState&lt;<span class="lifetime">&#39;a</span>&gt; {
+        <span class="kw">let </span>counts = <span class="kw">if </span>resolve.version() &gt;= ResolveVersion::V2 {
+            <span class="kw">let </span><span class="kw-2">mut </span>map = HashMap::new();
+            <span class="kw">for </span>id <span class="kw">in </span>resolve.iter() {
+                <span class="kw">let </span>slot = map
+                    .entry(id.name())
+                    .or_insert_with(HashMap::new)
+                    .entry(id.version())
+                    .or_insert(<span class="number">0</span>);
+                <span class="kw-2">*</span>slot += <span class="number">1</span>;
+            }
+            <span class="prelude-val">Some</span>(map)
+        } <span class="kw">else </span>{
+            <span class="prelude-val">None
+        </span>};
+        EncodeState { counts }
+    }
+}
+
+<span class="kw">fn </span>encodable_resolve_node(
+    id: PackageId,
+    resolve: <span class="kw-2">&amp;</span>Resolve,
+    state: <span class="kw-2">&amp;</span>EncodeState&lt;<span class="lifetime">&#39;_</span>&gt;,
+) -&gt; EncodableDependency {
+    <span class="kw">let </span>(replace, deps) = <span class="kw">match </span>resolve.replacement(id) {
+        <span class="prelude-val">Some</span>(id) =&gt; (
+            <span class="prelude-val">Some</span>(encodable_package_id(id, state, resolve.version())),
+            <span class="prelude-val">None</span>,
+        ),
+        <span class="prelude-val">None </span>=&gt; {
+            <span class="kw">let </span><span class="kw-2">mut </span>deps = resolve
+                .deps_not_replaced(id)
+                .map(|(id, <span class="kw">_</span>)| encodable_package_id(id, state, resolve.version()))
+                .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+            deps.sort();
+            (<span class="prelude-val">None</span>, <span class="prelude-val">Some</span>(deps))
+        }
+    };
+
+    EncodableDependency {
+        name: id.name().to_string(),
+        version: id.version().to_string(),
+        source: encode_source(id.source_id()),
+        dependencies: deps,
+        replace,
+        checksum: <span class="kw">if </span>resolve.version() &gt;= ResolveVersion::V2 {
+            resolve.checksums().get(<span class="kw-2">&amp;</span>id).and_then(|s| s.clone())
+        } <span class="kw">else </span>{
+            <span class="prelude-val">None
+        </span>},
+    }
+}
+
+<span class="kw">pub fn </span>encodable_package_id(
+    id: PackageId,
+    state: <span class="kw-2">&amp;</span>EncodeState&lt;<span class="lifetime">&#39;_</span>&gt;,
+    resolve_version: ResolveVersion,
+) -&gt; EncodablePackageId {
+    <span class="kw">let </span><span class="kw-2">mut </span>version = <span class="prelude-val">Some</span>(id.version().to_string());
+    <span class="kw">let </span><span class="kw-2">mut </span>id_to_encode = id.source_id();
+    <span class="kw">if </span>resolve_version &lt;= ResolveVersion::V2 {
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(GitReference::Branch(b)) = id_to_encode.git_reference() {
+            <span class="kw">if </span>b == <span class="string">&quot;master&quot; </span>{
+                id_to_encode =
+                    SourceId::for_git(id_to_encode.url(), GitReference::DefaultBranch).unwrap();
+            }
+        }
+    }
+    <span class="kw">let </span><span class="kw-2">mut </span>source = encode_source(id_to_encode).map(|s| s.with_precise(<span class="prelude-val">None</span>));
+    <span class="kw">if let </span><span class="prelude-val">Some</span>(counts) = <span class="kw-2">&amp;</span>state.counts {
+        <span class="kw">let </span>version_counts = <span class="kw-2">&amp;</span>counts[<span class="kw-2">&amp;</span>id.name()];
+        <span class="kw">if </span>version_counts[<span class="kw-2">&amp;</span>id.version()] == <span class="number">1 </span>{
+            source = <span class="prelude-val">None</span>;
+            <span class="kw">if </span>version_counts.len() == <span class="number">1 </span>{
+                version = <span class="prelude-val">None</span>;
+            }
+        }
+    }
+    EncodablePackageId {
+        name: id.name().to_string(),
+        version,
+        source,
+    }
+}
+
+<span class="kw">fn </span>encode_source(id: SourceId) -&gt; <span class="prelude-ty">Option</span>&lt;SourceId&gt; {
+    <span class="kw">if </span>id.is_path() {
+        <span class="prelude-val">None
+    </span>} <span class="kw">else </span>{
+        <span class="prelude-val">Some</span>(id)
+    }
+}
+</code></pre></div>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="cargo" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

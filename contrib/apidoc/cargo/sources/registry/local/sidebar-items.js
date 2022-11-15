@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["LocalRegistry","A local registry is a registry that lives on the filesystem as a set of `.crate` files with an `index` directory in the same format as a remote registry."]]};

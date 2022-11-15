@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":[["ConflictStoreTrie","This is a trie for storing a large number of sets designed to efficiently see if any of the stored sets are a subset of a search set."]],"struct":[["ConflictCache",""]]};

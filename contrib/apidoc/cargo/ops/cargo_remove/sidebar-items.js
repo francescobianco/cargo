@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["remove","Remove dependencies from a manifest"]],"struct":[["RemoveOptions","Remove a dependency from a Cargo.toml manifest file."]]};

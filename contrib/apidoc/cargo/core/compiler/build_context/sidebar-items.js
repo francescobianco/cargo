@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":[["target_info","This modules contains types storing information of target platfroms."]],"struct":[["BuildContext","The build context, containing complete infomration needed for a build task before it gets started."]]};

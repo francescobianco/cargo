@@ -1,0 +1,1416 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/cargo/core/compiler/context/compilation_files.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>compilation_files.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../../../normalize.css"><link rel="stylesheet" href="../../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../../../ayu.css" disabled><link rel="stylesheet" href="../../../../../dark.css" disabled><link rel="stylesheet" href="../../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../../storage.js"></script><script defer src="../../../../../source-script.js"></script><script defer src="../../../../../source-files.js"></script><script defer src="../../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../../cargo/index.html"><div class="logo-container"><img class="rust-logo" src="../../../../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../../../cargo/index.html"><div class="logo-container"><img class="rust-logo" src="../../../../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../../../cargo/index.html"><img class="rust-logo" src="../../../../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<span id="2">2</span>
+<span id="3">3</span>
+<span id="4">4</span>
+<span id="5">5</span>
+<span id="6">6</span>
+<span id="7">7</span>
+<span id="8">8</span>
+<span id="9">9</span>
+<span id="10">10</span>
+<span id="11">11</span>
+<span id="12">12</span>
+<span id="13">13</span>
+<span id="14">14</span>
+<span id="15">15</span>
+<span id="16">16</span>
+<span id="17">17</span>
+<span id="18">18</span>
+<span id="19">19</span>
+<span id="20">20</span>
+<span id="21">21</span>
+<span id="22">22</span>
+<span id="23">23</span>
+<span id="24">24</span>
+<span id="25">25</span>
+<span id="26">26</span>
+<span id="27">27</span>
+<span id="28">28</span>
+<span id="29">29</span>
+<span id="30">30</span>
+<span id="31">31</span>
+<span id="32">32</span>
+<span id="33">33</span>
+<span id="34">34</span>
+<span id="35">35</span>
+<span id="36">36</span>
+<span id="37">37</span>
+<span id="38">38</span>
+<span id="39">39</span>
+<span id="40">40</span>
+<span id="41">41</span>
+<span id="42">42</span>
+<span id="43">43</span>
+<span id="44">44</span>
+<span id="45">45</span>
+<span id="46">46</span>
+<span id="47">47</span>
+<span id="48">48</span>
+<span id="49">49</span>
+<span id="50">50</span>
+<span id="51">51</span>
+<span id="52">52</span>
+<span id="53">53</span>
+<span id="54">54</span>
+<span id="55">55</span>
+<span id="56">56</span>
+<span id="57">57</span>
+<span id="58">58</span>
+<span id="59">59</span>
+<span id="60">60</span>
+<span id="61">61</span>
+<span id="62">62</span>
+<span id="63">63</span>
+<span id="64">64</span>
+<span id="65">65</span>
+<span id="66">66</span>
+<span id="67">67</span>
+<span id="68">68</span>
+<span id="69">69</span>
+<span id="70">70</span>
+<span id="71">71</span>
+<span id="72">72</span>
+<span id="73">73</span>
+<span id="74">74</span>
+<span id="75">75</span>
+<span id="76">76</span>
+<span id="77">77</span>
+<span id="78">78</span>
+<span id="79">79</span>
+<span id="80">80</span>
+<span id="81">81</span>
+<span id="82">82</span>
+<span id="83">83</span>
+<span id="84">84</span>
+<span id="85">85</span>
+<span id="86">86</span>
+<span id="87">87</span>
+<span id="88">88</span>
+<span id="89">89</span>
+<span id="90">90</span>
+<span id="91">91</span>
+<span id="92">92</span>
+<span id="93">93</span>
+<span id="94">94</span>
+<span id="95">95</span>
+<span id="96">96</span>
+<span id="97">97</span>
+<span id="98">98</span>
+<span id="99">99</span>
+<span id="100">100</span>
+<span id="101">101</span>
+<span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
+<span id="108">108</span>
+<span id="109">109</span>
+<span id="110">110</span>
+<span id="111">111</span>
+<span id="112">112</span>
+<span id="113">113</span>
+<span id="114">114</span>
+<span id="115">115</span>
+<span id="116">116</span>
+<span id="117">117</span>
+<span id="118">118</span>
+<span id="119">119</span>
+<span id="120">120</span>
+<span id="121">121</span>
+<span id="122">122</span>
+<span id="123">123</span>
+<span id="124">124</span>
+<span id="125">125</span>
+<span id="126">126</span>
+<span id="127">127</span>
+<span id="128">128</span>
+<span id="129">129</span>
+<span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
+<span id="133">133</span>
+<span id="134">134</span>
+<span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
+<span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
+<span id="164">164</span>
+<span id="165">165</span>
+<span id="166">166</span>
+<span id="167">167</span>
+<span id="168">168</span>
+<span id="169">169</span>
+<span id="170">170</span>
+<span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
+<span id="177">177</span>
+<span id="178">178</span>
+<span id="179">179</span>
+<span id="180">180</span>
+<span id="181">181</span>
+<span id="182">182</span>
+<span id="183">183</span>
+<span id="184">184</span>
+<span id="185">185</span>
+<span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
+<span id="338">338</span>
+<span id="339">339</span>
+<span id="340">340</span>
+<span id="341">341</span>
+<span id="342">342</span>
+<span id="343">343</span>
+<span id="344">344</span>
+<span id="345">345</span>
+<span id="346">346</span>
+<span id="347">347</span>
+<span id="348">348</span>
+<span id="349">349</span>
+<span id="350">350</span>
+<span id="351">351</span>
+<span id="352">352</span>
+<span id="353">353</span>
+<span id="354">354</span>
+<span id="355">355</span>
+<span id="356">356</span>
+<span id="357">357</span>
+<span id="358">358</span>
+<span id="359">359</span>
+<span id="360">360</span>
+<span id="361">361</span>
+<span id="362">362</span>
+<span id="363">363</span>
+<span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
+<span id="367">367</span>
+<span id="368">368</span>
+<span id="369">369</span>
+<span id="370">370</span>
+<span id="371">371</span>
+<span id="372">372</span>
+<span id="373">373</span>
+<span id="374">374</span>
+<span id="375">375</span>
+<span id="376">376</span>
+<span id="377">377</span>
+<span id="378">378</span>
+<span id="379">379</span>
+<span id="380">380</span>
+<span id="381">381</span>
+<span id="382">382</span>
+<span id="383">383</span>
+<span id="384">384</span>
+<span id="385">385</span>
+<span id="386">386</span>
+<span id="387">387</span>
+<span id="388">388</span>
+<span id="389">389</span>
+<span id="390">390</span>
+<span id="391">391</span>
+<span id="392">392</span>
+<span id="393">393</span>
+<span id="394">394</span>
+<span id="395">395</span>
+<span id="396">396</span>
+<span id="397">397</span>
+<span id="398">398</span>
+<span id="399">399</span>
+<span id="400">400</span>
+<span id="401">401</span>
+<span id="402">402</span>
+<span id="403">403</span>
+<span id="404">404</span>
+<span id="405">405</span>
+<span id="406">406</span>
+<span id="407">407</span>
+<span id="408">408</span>
+<span id="409">409</span>
+<span id="410">410</span>
+<span id="411">411</span>
+<span id="412">412</span>
+<span id="413">413</span>
+<span id="414">414</span>
+<span id="415">415</span>
+<span id="416">416</span>
+<span id="417">417</span>
+<span id="418">418</span>
+<span id="419">419</span>
+<span id="420">420</span>
+<span id="421">421</span>
+<span id="422">422</span>
+<span id="423">423</span>
+<span id="424">424</span>
+<span id="425">425</span>
+<span id="426">426</span>
+<span id="427">427</span>
+<span id="428">428</span>
+<span id="429">429</span>
+<span id="430">430</span>
+<span id="431">431</span>
+<span id="432">432</span>
+<span id="433">433</span>
+<span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
+<span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
+<span id="441">441</span>
+<span id="442">442</span>
+<span id="443">443</span>
+<span id="444">444</span>
+<span id="445">445</span>
+<span id="446">446</span>
+<span id="447">447</span>
+<span id="448">448</span>
+<span id="449">449</span>
+<span id="450">450</span>
+<span id="451">451</span>
+<span id="452">452</span>
+<span id="453">453</span>
+<span id="454">454</span>
+<span id="455">455</span>
+<span id="456">456</span>
+<span id="457">457</span>
+<span id="458">458</span>
+<span id="459">459</span>
+<span id="460">460</span>
+<span id="461">461</span>
+<span id="462">462</span>
+<span id="463">463</span>
+<span id="464">464</span>
+<span id="465">465</span>
+<span id="466">466</span>
+<span id="467">467</span>
+<span id="468">468</span>
+<span id="469">469</span>
+<span id="470">470</span>
+<span id="471">471</span>
+<span id="472">472</span>
+<span id="473">473</span>
+<span id="474">474</span>
+<span id="475">475</span>
+<span id="476">476</span>
+<span id="477">477</span>
+<span id="478">478</span>
+<span id="479">479</span>
+<span id="480">480</span>
+<span id="481">481</span>
+<span id="482">482</span>
+<span id="483">483</span>
+<span id="484">484</span>
+<span id="485">485</span>
+<span id="486">486</span>
+<span id="487">487</span>
+<span id="488">488</span>
+<span id="489">489</span>
+<span id="490">490</span>
+<span id="491">491</span>
+<span id="492">492</span>
+<span id="493">493</span>
+<span id="494">494</span>
+<span id="495">495</span>
+<span id="496">496</span>
+<span id="497">497</span>
+<span id="498">498</span>
+<span id="499">499</span>
+<span id="500">500</span>
+<span id="501">501</span>
+<span id="502">502</span>
+<span id="503">503</span>
+<span id="504">504</span>
+<span id="505">505</span>
+<span id="506">506</span>
+<span id="507">507</span>
+<span id="508">508</span>
+<span id="509">509</span>
+<span id="510">510</span>
+<span id="511">511</span>
+<span id="512">512</span>
+<span id="513">513</span>
+<span id="514">514</span>
+<span id="515">515</span>
+<span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
+<span id="519">519</span>
+<span id="520">520</span>
+<span id="521">521</span>
+<span id="522">522</span>
+<span id="523">523</span>
+<span id="524">524</span>
+<span id="525">525</span>
+<span id="526">526</span>
+<span id="527">527</span>
+<span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
+<span id="531">531</span>
+<span id="532">532</span>
+<span id="533">533</span>
+<span id="534">534</span>
+<span id="535">535</span>
+<span id="536">536</span>
+<span id="537">537</span>
+<span id="538">538</span>
+<span id="539">539</span>
+<span id="540">540</span>
+<span id="541">541</span>
+<span id="542">542</span>
+<span id="543">543</span>
+<span id="544">544</span>
+<span id="545">545</span>
+<span id="546">546</span>
+<span id="547">547</span>
+<span id="548">548</span>
+<span id="549">549</span>
+<span id="550">550</span>
+<span id="551">551</span>
+<span id="552">552</span>
+<span id="553">553</span>
+<span id="554">554</span>
+<span id="555">555</span>
+<span id="556">556</span>
+<span id="557">557</span>
+<span id="558">558</span>
+<span id="559">559</span>
+<span id="560">560</span>
+<span id="561">561</span>
+<span id="562">562</span>
+<span id="563">563</span>
+<span id="564">564</span>
+<span id="565">565</span>
+<span id="566">566</span>
+<span id="567">567</span>
+<span id="568">568</span>
+<span id="569">569</span>
+<span id="570">570</span>
+<span id="571">571</span>
+<span id="572">572</span>
+<span id="573">573</span>
+<span id="574">574</span>
+<span id="575">575</span>
+<span id="576">576</span>
+<span id="577">577</span>
+<span id="578">578</span>
+<span id="579">579</span>
+<span id="580">580</span>
+<span id="581">581</span>
+<span id="582">582</span>
+<span id="583">583</span>
+<span id="584">584</span>
+<span id="585">585</span>
+<span id="586">586</span>
+<span id="587">587</span>
+<span id="588">588</span>
+<span id="589">589</span>
+<span id="590">590</span>
+<span id="591">591</span>
+<span id="592">592</span>
+<span id="593">593</span>
+<span id="594">594</span>
+<span id="595">595</span>
+<span id="596">596</span>
+<span id="597">597</span>
+<span id="598">598</span>
+<span id="599">599</span>
+<span id="600">600</span>
+<span id="601">601</span>
+<span id="602">602</span>
+<span id="603">603</span>
+<span id="604">604</span>
+<span id="605">605</span>
+<span id="606">606</span>
+<span id="607">607</span>
+<span id="608">608</span>
+<span id="609">609</span>
+<span id="610">610</span>
+<span id="611">611</span>
+<span id="612">612</span>
+<span id="613">613</span>
+<span id="614">614</span>
+<span id="615">615</span>
+<span id="616">616</span>
+<span id="617">617</span>
+<span id="618">618</span>
+<span id="619">619</span>
+<span id="620">620</span>
+<span id="621">621</span>
+<span id="622">622</span>
+<span id="623">623</span>
+<span id="624">624</span>
+<span id="625">625</span>
+<span id="626">626</span>
+<span id="627">627</span>
+<span id="628">628</span>
+<span id="629">629</span>
+<span id="630">630</span>
+<span id="631">631</span>
+<span id="632">632</span>
+<span id="633">633</span>
+<span id="634">634</span>
+<span id="635">635</span>
+<span id="636">636</span>
+<span id="637">637</span>
+<span id="638">638</span>
+<span id="639">639</span>
+<span id="640">640</span>
+<span id="641">641</span>
+<span id="642">642</span>
+<span id="643">643</span>
+<span id="644">644</span>
+<span id="645">645</span>
+<span id="646">646</span>
+<span id="647">647</span>
+<span id="648">648</span>
+<span id="649">649</span>
+<span id="650">650</span>
+<span id="651">651</span>
+<span id="652">652</span>
+<span id="653">653</span>
+<span id="654">654</span>
+<span id="655">655</span>
+<span id="656">656</span>
+<span id="657">657</span>
+<span id="658">658</span>
+<span id="659">659</span>
+<span id="660">660</span>
+<span id="661">661</span>
+<span id="662">662</span>
+<span id="663">663</span>
+<span id="664">664</span>
+<span id="665">665</span>
+<span id="666">666</span>
+<span id="667">667</span>
+<span id="668">668</span>
+<span id="669">669</span>
+<span id="670">670</span>
+<span id="671">671</span>
+<span id="672">672</span>
+<span id="673">673</span>
+<span id="674">674</span>
+<span id="675">675</span>
+<span id="676">676</span>
+<span id="677">677</span>
+<span id="678">678</span>
+<span id="679">679</span>
+<span id="680">680</span>
+<span id="681">681</span>
+<span id="682">682</span>
+<span id="683">683</span>
+<span id="684">684</span>
+<span id="685">685</span>
+<span id="686">686</span>
+<span id="687">687</span>
+<span id="688">688</span>
+<span id="689">689</span>
+<span id="690">690</span>
+<span id="691">691</span>
+<span id="692">692</span>
+<span id="693">693</span>
+<span id="694">694</span>
+<span id="695">695</span>
+<span id="696">696</span>
+<span id="697">697</span>
+<span id="698">698</span>
+<span id="699">699</span>
+<span id="700">700</span>
+<span id="701">701</span>
+<span id="702">702</span>
+<span id="703">703</span>
+<span id="704">704</span>
+<span id="705">705</span>
+<span id="706">706</span>
+<span id="707">707</span>
+</pre><pre class="rust"><code><span class="kw">use </span>std::collections::HashMap;
+<span class="kw">use </span>std::env;
+<span class="kw">use </span>std::fmt;
+<span class="kw">use </span>std::hash::{Hash, Hasher};
+<span class="kw">use </span>std::path::{Path, PathBuf};
+<span class="kw">use </span>std::sync::Arc;
+
+<span class="kw">use </span>lazycell::LazyCell;
+<span class="kw">use </span>log::debug;
+
+<span class="kw">use super</span>::{BuildContext, CompileKind, Context, FileFlavor, Layout};
+<span class="kw">use </span><span class="kw">crate</span>::core::compiler::{CompileMode, CompileTarget, CrateType, FileType, Unit};
+<span class="kw">use </span><span class="kw">crate</span>::core::{Target, TargetKind, Workspace};
+<span class="kw">use </span><span class="kw">crate</span>::util::{<span class="self">self</span>, CargoResult, StableHasher};
+
+<span class="doccomment">/// This is a generic version number that can be changed to make
+/// backwards-incompatible changes to any file structures in the output
+/// directory. For example, the fingerprint files or the build-script
+/// output files. Normally cargo updates ship with rustc updates which will
+/// cause a new hash due to the rustc version changing, but this allows
+/// cargo to be extra careful to deal with different versions of cargo that
+/// use the same rustc version.
+</span><span class="kw">const </span>METADATA_VERSION: u8 = <span class="number">2</span>;
+
+<span class="doccomment">/// The `Metadata` is a hash used to make unique file names for each unit in a
+/// build. It is also use for symbol mangling.
+///
+/// For example:
+/// - A project may depend on crate `A` and crate `B`, so the package name must be in the file name.
+/// - Similarly a project may depend on two versions of `A`, so the version must be in the file name.
+///
+/// In general this must include all things that need to be distinguished in different parts of
+/// the same build. This is absolutely required or we override things before
+/// we get chance to use them.
+///
+/// It is also used for symbol mangling, because if you have two versions of
+/// the same crate linked together, their symbols need to be differentiated.
+///
+/// We use a hash because it is an easy way to guarantee
+/// that all the inputs can be converted to a valid path.
+///
+/// This also acts as the main layer of caching provided by Cargo.
+/// For example, we want to cache `cargo build` and `cargo doc` separately, so that running one
+/// does not invalidate the artifacts for the other. We do this by including `CompileMode` in the
+/// hash, thus the artifacts go in different folders and do not override each other.
+/// If we don&#39;t add something that we should have, for this reason, we get the
+/// correct output but rebuild more than is needed.
+///
+/// Some things that need to be tracked to ensure the correct output should definitely *not*
+/// go in the `Metadata`. For example, the modification time of a file, should be tracked to make a
+/// rebuild when the file changes. However, it would be wasteful to include in the `Metadata`. The
+/// old artifacts are never going to be needed again. We can save space by just overwriting them.
+/// If we add something that we should not have, for this reason, we get the correct output but take
+/// more space than needed. This makes not including something in `Metadata`
+/// a form of cache invalidation.
+///
+/// You should also avoid anything that would interfere with reproducible
+/// builds. For example, *any* absolute path should be avoided. This is one
+/// reason that `RUSTFLAGS` is not in `Metadata`, because it often has
+/// absolute paths (like `--remap-path-prefix` which is fundamentally used for
+/// reproducible builds and has absolute paths in it). Also, in some cases the
+/// mangled symbols need to be stable between different builds with different
+/// settings. For example, profile-guided optimizations need to swap
+/// `RUSTFLAGS` between runs, but needs to keep the same symbol names.
+///
+/// Note that the `Fingerprint` is in charge of tracking everything needed to determine if a
+/// rebuild is needed.
+</span><span class="attribute">#[derive(Copy, Clone, Hash, Eq, PartialEq, Ord, PartialOrd)]
+</span><span class="kw">pub struct </span>Metadata(u64);
+
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>Metadata {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;{:016x}&quot;</span>, <span class="self">self</span>.<span class="number">0</span>)
+    }
+}
+
+<span class="kw">impl </span>fmt::Debug <span class="kw">for </span>Metadata {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="macro">write!</span>(f, <span class="string">&quot;Metadata({:016x})&quot;</span>, <span class="self">self</span>.<span class="number">0</span>)
+    }
+}
+
+<span class="doccomment">/// Information about the metadata hashes used for a `Unit`.
+</span><span class="kw">struct </span>MetaInfo {
+    <span class="doccomment">/// The symbol hash to use.
+    </span>meta_hash: Metadata,
+    <span class="doccomment">/// Whether or not the `-C extra-filename` flag is used to generate unique
+    /// output filenames for this `Unit`.
+    ///
+    /// If this is `true`, the `meta_hash` is used for the filename.
+    </span>use_extra_filename: bool,
+}
+
+<span class="doccomment">/// Collection of information about the files emitted by the compiler, and the
+/// output directory structure.
+</span><span class="kw">pub struct </span>CompilationFiles&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;cfg</span>&gt; {
+    <span class="doccomment">/// The target directory layout for the host (and target if it is the same as host).
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) host: Layout,
+    <span class="doccomment">/// The target directory layout for the target (if different from then host).
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) target: HashMap&lt;CompileTarget, Layout&gt;,
+    <span class="doccomment">/// Additional directory to include a copy of the outputs.
+    </span>export_dir: <span class="prelude-ty">Option</span>&lt;PathBuf&gt;,
+    <span class="doccomment">/// The root targets requested by the user on the command line (does not
+    /// include dependencies).
+    </span>roots: Vec&lt;Unit&gt;,
+    ws: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>Workspace&lt;<span class="lifetime">&#39;cfg</span>&gt;,
+    <span class="doccomment">/// Metadata hash to use for each unit.
+    </span>metas: HashMap&lt;Unit, MetaInfo&gt;,
+    <span class="doccomment">/// For each Unit, a list all files produced.
+    </span>outputs: HashMap&lt;Unit, LazyCell&lt;Arc&lt;Vec&lt;OutputFile&gt;&gt;&gt;&gt;,
+}
+
+<span class="doccomment">/// Info about a single file emitted by the compiler.
+</span><span class="attribute">#[derive(Debug)]
+</span><span class="kw">pub struct </span>OutputFile {
+    <span class="doccomment">/// Absolute path to the file that will be produced by the build process.
+    </span><span class="kw">pub </span>path: PathBuf,
+    <span class="doccomment">/// If it should be linked into `target`, and what it should be called
+    /// (e.g., without metadata).
+    </span><span class="kw">pub </span>hardlink: <span class="prelude-ty">Option</span>&lt;PathBuf&gt;,
+    <span class="doccomment">/// If `--out-dir` is specified, the absolute path to the exported file.
+    </span><span class="kw">pub </span>export_path: <span class="prelude-ty">Option</span>&lt;PathBuf&gt;,
+    <span class="doccomment">/// Type of the file (library / debug symbol / else).
+    </span><span class="kw">pub </span>flavor: FileFlavor,
+}
+
+<span class="kw">impl </span>OutputFile {
+    <span class="doccomment">/// Gets the hard link if present; otherwise, returns the path.
+    </span><span class="kw">pub fn </span>bin_dst(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>PathBuf {
+        <span class="kw">match </span><span class="self">self</span>.hardlink {
+            <span class="prelude-val">Some</span>(<span class="kw-2">ref </span>link_dst) =&gt; link_dst,
+            <span class="prelude-val">None </span>=&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.path,
+        }
+    }
+}
+
+<span class="kw">impl</span>&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;cfg</span>: <span class="lifetime">&#39;a</span>&gt; CompilationFiles&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;cfg</span>&gt; {
+    <span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>new(
+        cx: <span class="kw-2">&amp;</span>Context&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;cfg</span>&gt;,
+        host: Layout,
+        target: HashMap&lt;CompileTarget, Layout&gt;,
+    ) -&gt; CompilationFiles&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;cfg</span>&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>metas = HashMap::new();
+        <span class="kw">for </span>unit <span class="kw">in </span><span class="kw-2">&amp;</span>cx.bcx.roots {
+            metadata_of(unit, cx, <span class="kw-2">&amp;mut </span>metas);
+        }
+        <span class="kw">let </span>outputs = metas
+            .keys()
+            .cloned()
+            .map(|unit| (unit, LazyCell::new()))
+            .collect();
+        CompilationFiles {
+            ws: cx.bcx.ws,
+            host,
+            target,
+            export_dir: cx.bcx.build_config.export_dir.clone(),
+            roots: cx.bcx.roots.clone(),
+            metas,
+            outputs,
+        }
+    }
+
+    <span class="doccomment">/// Returns the appropriate directory layout for either a plugin or not.
+    </span><span class="kw">pub fn </span>layout(<span class="kw-2">&amp;</span><span class="self">self</span>, kind: CompileKind) -&gt; <span class="kw-2">&amp;</span>Layout {
+        <span class="kw">match </span>kind {
+            CompileKind::Host =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.host,
+            CompileKind::Target(target) =&gt; <span class="kw-2">&amp;</span><span class="self">self</span>.target[<span class="kw-2">&amp;</span>target],
+        }
+    }
+
+    <span class="doccomment">/// Gets the metadata for the given unit.
+    ///
+    /// See module docs for more details.
+    </span><span class="kw">pub fn </span>metadata(<span class="kw-2">&amp;</span><span class="self">self</span>, unit: <span class="kw-2">&amp;</span>Unit) -&gt; Metadata {
+        <span class="self">self</span>.metas[unit].meta_hash
+    }
+
+    <span class="doccomment">/// Returns whether or not `-C extra-filename` is used to extend the
+    /// output filenames to make them unique.
+    </span><span class="kw">pub fn </span>use_extra_filename(<span class="kw-2">&amp;</span><span class="self">self</span>, unit: <span class="kw-2">&amp;</span>Unit) -&gt; bool {
+        <span class="self">self</span>.metas[unit].use_extra_filename
+    }
+
+    <span class="doccomment">/// Gets the short hash based only on the `PackageId`.
+    /// Used for the metadata when `metadata` returns `None`.
+    </span><span class="kw">pub fn </span>target_short_hash(<span class="kw-2">&amp;</span><span class="self">self</span>, unit: <span class="kw-2">&amp;</span>Unit) -&gt; String {
+        <span class="kw">let </span>hashable = unit.pkg.package_id().stable_hash(<span class="self">self</span>.ws.root());
+        util::short_hash(<span class="kw-2">&amp;</span>(METADATA_VERSION, hashable))
+    }
+
+    <span class="doccomment">/// Returns the directory where the artifacts for the given unit are
+    /// initially created.
+    </span><span class="kw">pub fn </span>out_dir(<span class="kw-2">&amp;</span><span class="self">self</span>, unit: <span class="kw-2">&amp;</span>Unit) -&gt; PathBuf {
+        <span class="comment">// Docscrape units need to have doc/ set as the out_dir so sources for reverse-dependencies
+        // will be put into doc/ and not into deps/ where the *.examples files are stored.
+        </span><span class="kw">if </span>unit.mode.is_doc() || unit.mode.is_doc_scrape() {
+            <span class="self">self</span>.layout(unit.kind).doc().to_path_buf()
+        } <span class="kw">else if </span>unit.mode.is_doc_test() {
+            <span class="macro">panic!</span>(<span class="string">&quot;doc tests do not have an out dir&quot;</span>);
+        } <span class="kw">else if </span>unit.target.is_custom_build() {
+            <span class="self">self</span>.build_script_dir(unit)
+        } <span class="kw">else if </span>unit.target.is_example() {
+            <span class="self">self</span>.layout(unit.kind).examples().to_path_buf()
+        } <span class="kw">else if </span>unit.artifact.is_true() {
+            <span class="self">self</span>.artifact_dir(unit)
+        } <span class="kw">else </span>{
+            <span class="self">self</span>.deps_dir(unit).to_path_buf()
+        }
+    }
+
+    <span class="doccomment">/// Additional export directory from `--out-dir`.
+    </span><span class="kw">pub fn </span>export_dir(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;PathBuf&gt; {
+        <span class="self">self</span>.export_dir.clone()
+    }
+
+    <span class="doccomment">/// Directory name to use for a package in the form `NAME-HASH`.
+    ///
+    /// Note that some units may share the same directory, so care should be
+    /// taken in those cases!
+    </span><span class="kw">fn </span>pkg_dir(<span class="kw-2">&amp;</span><span class="self">self</span>, unit: <span class="kw-2">&amp;</span>Unit) -&gt; String {
+        <span class="kw">let </span>name = unit.pkg.package_id().name();
+        <span class="kw">let </span>meta = <span class="kw-2">&amp;</span><span class="self">self</span>.metas[unit];
+        <span class="kw">if </span>meta.use_extra_filename {
+            <span class="macro">format!</span>(<span class="string">&quot;{}-{}&quot;</span>, name, meta.meta_hash)
+        } <span class="kw">else </span>{
+            <span class="macro">format!</span>(<span class="string">&quot;{}-{}&quot;</span>, name, <span class="self">self</span>.target_short_hash(unit))
+        }
+    }
+
+    <span class="doccomment">/// Returns the final artifact path for the host (`/…/target/debug`)
+    </span><span class="kw">pub fn </span>host_dest(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Path {
+        <span class="self">self</span>.host.dest()
+    }
+
+    <span class="doccomment">/// Returns the root of the build output tree for the host (`/…/target`)
+    </span><span class="kw">pub fn </span>host_root(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Path {
+        <span class="self">self</span>.host.root()
+    }
+
+    <span class="doccomment">/// Returns the host `deps` directory path.
+    </span><span class="kw">pub fn </span>host_deps(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>Path {
+        <span class="self">self</span>.host.deps()
+    }
+
+    <span class="doccomment">/// Returns the directories where Rust crate dependencies are found for the
+    /// specified unit.
+    </span><span class="kw">pub fn </span>deps_dir(<span class="kw-2">&amp;</span><span class="self">self</span>, unit: <span class="kw-2">&amp;</span>Unit) -&gt; <span class="kw-2">&amp;</span>Path {
+        <span class="self">self</span>.layout(unit.kind).deps()
+    }
+
+    <span class="doccomment">/// Directory where the fingerprint for the given unit should go.
+    </span><span class="kw">pub fn </span>fingerprint_dir(<span class="kw-2">&amp;</span><span class="self">self</span>, unit: <span class="kw-2">&amp;</span>Unit) -&gt; PathBuf {
+        <span class="kw">let </span>dir = <span class="self">self</span>.pkg_dir(unit);
+        <span class="self">self</span>.layout(unit.kind).fingerprint().join(dir)
+    }
+
+    <span class="doccomment">/// Returns the path for a file in the fingerprint directory.
+    ///
+    /// The &quot;prefix&quot; should be something to distinguish the file from other
+    /// files in the fingerprint directory.
+    </span><span class="kw">pub fn </span>fingerprint_file_path(<span class="kw-2">&amp;</span><span class="self">self</span>, unit: <span class="kw-2">&amp;</span>Unit, prefix: <span class="kw-2">&amp;</span>str) -&gt; PathBuf {
+        <span class="comment">// Different targets need to be distinguished in the
+        </span><span class="kw">let </span>kind = unit.target.kind().description();
+        <span class="kw">let </span>flavor = <span class="kw">if </span>unit.mode.is_any_test() {
+            <span class="string">&quot;test-&quot;
+        </span>} <span class="kw">else if </span>unit.mode.is_doc() {
+            <span class="string">&quot;doc-&quot;
+        </span>} <span class="kw">else if </span>unit.mode.is_run_custom_build() {
+            <span class="string">&quot;run-&quot;
+        </span>} <span class="kw">else </span>{
+            <span class="string">&quot;&quot;
+        </span>};
+        <span class="kw">let </span>name = <span class="macro">format!</span>(<span class="string">&quot;{}{}{}-{}&quot;</span>, prefix, flavor, kind, unit.target.name());
+        <span class="self">self</span>.fingerprint_dir(unit).join(name)
+    }
+
+    <span class="doccomment">/// Path where compiler output is cached.
+    </span><span class="kw">pub fn </span>message_cache_path(<span class="kw-2">&amp;</span><span class="self">self</span>, unit: <span class="kw-2">&amp;</span>Unit) -&gt; PathBuf {
+        <span class="self">self</span>.fingerprint_file_path(unit, <span class="string">&quot;output-&quot;</span>)
+    }
+
+    <span class="doccomment">/// Returns the directory where a compiled build script is stored.
+    /// `/path/to/target/{debug,release}/build/PKG-HASH`
+    </span><span class="kw">pub fn </span>build_script_dir(<span class="kw-2">&amp;</span><span class="self">self</span>, unit: <span class="kw-2">&amp;</span>Unit) -&gt; PathBuf {
+        <span class="macro">assert!</span>(unit.target.is_custom_build());
+        <span class="macro">assert!</span>(!unit.mode.is_run_custom_build());
+        <span class="macro">assert!</span>(<span class="self">self</span>.metas.contains_key(unit));
+        <span class="kw">let </span>dir = <span class="self">self</span>.pkg_dir(unit);
+        <span class="self">self</span>.layout(CompileKind::Host).build().join(dir)
+    }
+
+    <span class="doccomment">/// Returns the directory for compiled artifacts files.
+    /// `/path/to/target/{debug,release}/deps/artifact/KIND/PKG-HASH`
+    </span><span class="kw">fn </span>artifact_dir(<span class="kw-2">&amp;</span><span class="self">self</span>, unit: <span class="kw-2">&amp;</span>Unit) -&gt; PathBuf {
+        <span class="macro">assert!</span>(<span class="self">self</span>.metas.contains_key(unit));
+        <span class="macro">assert!</span>(unit.artifact.is_true());
+        <span class="kw">let </span>dir = <span class="self">self</span>.pkg_dir(unit);
+        <span class="kw">let </span>kind = <span class="kw">match </span>unit.target.kind() {
+            TargetKind::Bin =&gt; <span class="string">&quot;bin&quot;</span>,
+            TargetKind::Lib(lib_kinds) =&gt; <span class="kw">match </span>lib_kinds.as_slice() {
+                <span class="kw-2">&amp;</span>[CrateType::Cdylib] =&gt; <span class="string">&quot;cdylib&quot;</span>,
+                <span class="kw-2">&amp;</span>[CrateType::Staticlib] =&gt; <span class="string">&quot;staticlib&quot;</span>,
+                invalid =&gt; <span class="macro">unreachable!</span>(
+                    <span class="string">&quot;BUG: unexpected artifact library type(s): {:?} - these should have been split&quot;</span>,
+                    invalid
+                ),
+            },
+            invalid =&gt; <span class="macro">unreachable!</span>(
+                <span class="string">&quot;BUG: {:?} are not supposed to be used as artifacts&quot;</span>,
+                invalid
+            ),
+        };
+        <span class="self">self</span>.layout(unit.kind).artifact().join(dir).join(kind)
+    }
+
+    <span class="doccomment">/// Returns the directory where information about running a build script
+    /// is stored.
+    /// `/path/to/target/{debug,release}/build/PKG-HASH`
+    </span><span class="kw">pub fn </span>build_script_run_dir(<span class="kw-2">&amp;</span><span class="self">self</span>, unit: <span class="kw-2">&amp;</span>Unit) -&gt; PathBuf {
+        <span class="macro">assert!</span>(unit.target.is_custom_build());
+        <span class="macro">assert!</span>(unit.mode.is_run_custom_build());
+        <span class="kw">let </span>dir = <span class="self">self</span>.pkg_dir(unit);
+        <span class="self">self</span>.layout(unit.kind).build().join(dir)
+    }
+
+    <span class="doccomment">/// Returns the &quot;OUT_DIR&quot; directory for running a build script.
+    /// `/path/to/target/{debug,release}/build/PKG-HASH/out`
+    </span><span class="kw">pub fn </span>build_script_out_dir(<span class="kw-2">&amp;</span><span class="self">self</span>, unit: <span class="kw-2">&amp;</span>Unit) -&gt; PathBuf {
+        <span class="self">self</span>.build_script_run_dir(unit).join(<span class="string">&quot;out&quot;</span>)
+    }
+
+    <span class="doccomment">/// Returns the path to the executable binary for the given bin target.
+    ///
+    /// This should only to be used when a `Unit` is not available.
+    </span><span class="kw">pub fn </span>bin_link_for_target(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        target: <span class="kw-2">&amp;</span>Target,
+        kind: CompileKind,
+        bcx: <span class="kw-2">&amp;</span>BuildContext&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt;,
+    ) -&gt; CargoResult&lt;PathBuf&gt; {
+        <span class="macro">assert!</span>(target.is_bin());
+        <span class="kw">let </span>dest = <span class="self">self</span>.layout(kind).dest();
+        <span class="kw">let </span>info = bcx.target_data.info(kind);
+        <span class="kw">let </span>(file_types, <span class="kw">_</span>) = info
+            .rustc_outputs(
+                CompileMode::Build,
+                <span class="kw-2">&amp;</span>TargetKind::Bin,
+                bcx.target_data.short_name(<span class="kw-2">&amp;</span>kind),
+            )
+            .expect(<span class="string">&quot;target must support `bin`&quot;</span>);
+
+        <span class="kw">let </span>file_type = file_types
+            .iter()
+            .find(|file_type| file_type.flavor == FileFlavor::Normal)
+            .expect(<span class="string">&quot;target must support `bin`&quot;</span>);
+
+        <span class="prelude-val">Ok</span>(dest.join(file_type.uplift_filename(target)))
+    }
+
+    <span class="doccomment">/// Returns the filenames that the given unit will generate.
+    ///
+    /// Note: It is not guaranteed that all of the files will be generated.
+    </span><span class="kw">pub</span>(<span class="kw">super</span>) <span class="kw">fn </span>outputs(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        unit: <span class="kw-2">&amp;</span>Unit,
+        bcx: <span class="kw-2">&amp;</span>BuildContext&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;cfg</span>&gt;,
+    ) -&gt; CargoResult&lt;Arc&lt;Vec&lt;OutputFile&gt;&gt;&gt; {
+        <span class="self">self</span>.outputs[unit]
+            .try_borrow_with(|| <span class="self">self</span>.calc_outputs(unit, bcx))
+            .map(Arc::clone)
+    }
+
+    <span class="doccomment">/// Returns the path where the output for the given unit and FileType
+    /// should be uplifted to.
+    ///
+    /// Returns `None` if the unit shouldn&#39;t be uplifted (for example, a
+    /// dependent rlib).
+    </span><span class="kw">fn </span>uplift_to(<span class="kw-2">&amp;</span><span class="self">self</span>, unit: <span class="kw-2">&amp;</span>Unit, file_type: <span class="kw-2">&amp;</span>FileType, from_path: <span class="kw-2">&amp;</span>Path) -&gt; <span class="prelude-ty">Option</span>&lt;PathBuf&gt; {
+        <span class="comment">// Tests, check, doc, etc. should not be uplifted.
+        </span><span class="kw">if </span>unit.mode != CompileMode::Build || file_type.flavor == FileFlavor::Rmeta {
+            <span class="kw">return </span><span class="prelude-val">None</span>;
+        }
+
+        <span class="comment">// Artifact dependencies are never uplifted.
+        </span><span class="kw">if </span>unit.artifact.is_true() {
+            <span class="kw">return </span><span class="prelude-val">None</span>;
+        }
+
+        <span class="comment">// - Binaries: The user always wants to see these, even if they are
+        //   implicitly built (for example for integration tests).
+        // - dylibs: This ensures that the dynamic linker pulls in all the
+        //   latest copies (even if the dylib was built from a previous cargo
+        //   build). There are complex reasons for this, see #8139, #6167, #6162.
+        // - Things directly requested from the command-line (the &quot;roots&quot;).
+        //   This one is a little questionable for rlibs (see #6131), but is
+        //   historically how Cargo has operated. This is primarily useful to
+        //   give the user access to staticlibs and cdylibs.
+        </span><span class="kw">if </span>!unit.target.is_bin()
+            &amp;&amp; !unit.target.is_custom_build()
+            &amp;&amp; file_type.crate_type != <span class="prelude-val">Some</span>(CrateType::Dylib)
+            &amp;&amp; !<span class="self">self</span>.roots.contains(unit)
+        {
+            <span class="kw">return </span><span class="prelude-val">None</span>;
+        }
+
+        <span class="kw">let </span>filename = file_type.uplift_filename(<span class="kw-2">&amp;</span>unit.target);
+        <span class="kw">let </span>uplift_path = <span class="kw">if </span>unit.target.is_example() {
+            <span class="comment">// Examples live in their own little world.
+            </span><span class="self">self</span>.layout(unit.kind).examples().join(filename)
+        } <span class="kw">else if </span>unit.target.is_custom_build() {
+            <span class="self">self</span>.build_script_dir(unit).join(filename)
+        } <span class="kw">else </span>{
+            <span class="self">self</span>.layout(unit.kind).dest().join(filename)
+        };
+        <span class="kw">if </span>from_path == uplift_path {
+            <span class="comment">// This can happen with things like examples that reside in the
+            // same directory, do not have a metadata hash (like on Windows),
+            // and do not have hyphens.
+            </span><span class="kw">return </span><span class="prelude-val">None</span>;
+        }
+        <span class="prelude-val">Some</span>(uplift_path)
+    }
+
+    <span class="kw">fn </span>calc_outputs(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        unit: <span class="kw-2">&amp;</span>Unit,
+        bcx: <span class="kw-2">&amp;</span>BuildContext&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;cfg</span>&gt;,
+    ) -&gt; CargoResult&lt;Arc&lt;Vec&lt;OutputFile&gt;&gt;&gt; {
+        <span class="kw">let </span>ret = <span class="kw">match </span>unit.mode {
+            CompileMode::Doc { .. } =&gt; {
+                <span class="kw">let </span>path = <span class="self">self
+                    </span>.out_dir(unit)
+                    .join(unit.target.crate_name())
+                    .join(<span class="string">&quot;index.html&quot;</span>);
+                <span class="macro">vec!</span>[OutputFile {
+                    path,
+                    hardlink: <span class="prelude-val">None</span>,
+                    export_path: <span class="prelude-val">None</span>,
+                    flavor: FileFlavor::Normal,
+                }]
+            }
+            CompileMode::RunCustomBuild =&gt; {
+                <span class="comment">// At this time, this code path does not handle build script
+                // outputs.
+                </span><span class="macro">vec!</span>[]
+            }
+            CompileMode::Doctest =&gt; {
+                <span class="comment">// Doctests are built in a temporary directory and then
+                // deleted. There is the `--persist-doctests` unstable flag,
+                // but Cargo does not know about that.
+                </span><span class="macro">vec!</span>[]
+            }
+            CompileMode::Docscrape =&gt; {
+                <span class="kw">let </span>path = <span class="self">self
+                    </span>.deps_dir(unit)
+                    .join(<span class="macro">format!</span>(<span class="string">&quot;{}.examples&quot;</span>, unit.buildkey()));
+                <span class="macro">vec!</span>[OutputFile {
+                    path,
+                    hardlink: <span class="prelude-val">None</span>,
+                    export_path: <span class="prelude-val">None</span>,
+                    flavor: FileFlavor::Normal,
+                }]
+            }
+            CompileMode::Test
+            | CompileMode::Build
+            | CompileMode::Bench
+            | CompileMode::Check { .. } =&gt; <span class="self">self</span>.calc_outputs_rustc(unit, bcx)<span class="question-mark">?</span>,
+        };
+        <span class="macro">debug!</span>(<span class="string">&quot;Target filenames: {:?}&quot;</span>, ret);
+
+        <span class="prelude-val">Ok</span>(Arc::new(ret))
+    }
+
+    <span class="doccomment">/// Computes the actual, full pathnames for all the files generated by rustc.
+    ///
+    /// The `OutputFile` also contains the paths where those files should be
+    /// &quot;uplifted&quot; to.
+    </span><span class="kw">fn </span>calc_outputs_rustc(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        unit: <span class="kw-2">&amp;</span>Unit,
+        bcx: <span class="kw-2">&amp;</span>BuildContext&lt;<span class="lifetime">&#39;a</span>, <span class="lifetime">&#39;cfg</span>&gt;,
+    ) -&gt; CargoResult&lt;Vec&lt;OutputFile&gt;&gt; {
+        <span class="kw">let </span>out_dir = <span class="self">self</span>.out_dir(unit);
+
+        <span class="kw">let </span>info = bcx.target_data.info(unit.kind);
+        <span class="kw">let </span>triple = bcx.target_data.short_name(<span class="kw-2">&amp;</span>unit.kind);
+        <span class="kw">let </span>(file_types, unsupported) =
+            info.rustc_outputs(unit.mode, unit.target.kind(), triple)<span class="question-mark">?</span>;
+        <span class="kw">if </span>file_types.is_empty() {
+            <span class="kw">if </span>!unsupported.is_empty() {
+                <span class="kw">let </span>unsupported_strs: Vec&lt;<span class="kw">_</span>&gt; = unsupported.iter().map(|ct| ct.as_str()).collect();
+                <span class="macro">anyhow::bail!</span>(
+                    <span class="string">&quot;cannot produce {} for `{}` as the target `{}` \
+                     does not support these crate types&quot;</span>,
+                    unsupported_strs.join(<span class="string">&quot;, &quot;</span>),
+                    unit.pkg,
+                    triple,
+                )
+            }
+            <span class="macro">anyhow::bail!</span>(
+                <span class="string">&quot;cannot compile `{}` as the target `{}` does not \
+                 support any of the output crate types&quot;</span>,
+                unit.pkg,
+                triple,
+            );
+        }
+
+        <span class="comment">// Convert FileType to OutputFile.
+        </span><span class="kw">let </span><span class="kw-2">mut </span>outputs = Vec::new();
+        <span class="kw">for </span>file_type <span class="kw">in </span>file_types {
+            <span class="kw">let </span>meta = <span class="kw-2">&amp;</span><span class="self">self</span>.metas[unit];
+            <span class="kw">let </span>meta_opt = meta.use_extra_filename.then(|| meta.meta_hash.to_string());
+            <span class="kw">let </span>path = out_dir.join(file_type.output_filename(<span class="kw-2">&amp;</span>unit.target, meta_opt.as_deref()));
+
+            <span class="comment">// If, the `different_binary_name` feature is enabled, the name of the hardlink will
+            // be the name of the binary provided by the user in `Cargo.toml`.
+            </span><span class="kw">let </span>hardlink = <span class="self">self</span>.uplift_to(unit, <span class="kw-2">&amp;</span>file_type, <span class="kw-2">&amp;</span>path);
+            <span class="kw">let </span>export_path = <span class="kw">if </span>unit.target.is_custom_build() {
+                <span class="prelude-val">None
+            </span>} <span class="kw">else </span>{
+                <span class="self">self</span>.export_dir.as_ref().and_then(|export_dir| {
+                    hardlink
+                        .as_ref()
+                        .map(|hardlink| export_dir.join(hardlink.file_name().unwrap()))
+                })
+            };
+            outputs.push(OutputFile {
+                path,
+                hardlink,
+                export_path,
+                flavor: file_type.flavor,
+            });
+        }
+        <span class="prelude-val">Ok</span>(outputs)
+    }
+}
+
+<span class="kw">fn </span>metadata_of&lt;<span class="lifetime">&#39;a</span>&gt;(
+    unit: <span class="kw-2">&amp;</span>Unit,
+    cx: <span class="kw-2">&amp;</span>Context&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt;,
+    metas: <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span><span class="kw-2">mut </span>HashMap&lt;Unit, MetaInfo&gt;,
+) -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;a </span>MetaInfo {
+    <span class="kw">if </span>!metas.contains_key(unit) {
+        <span class="kw">let </span>meta = compute_metadata(unit, cx, metas);
+        metas.insert(unit.clone(), meta);
+        <span class="kw">for </span>dep <span class="kw">in </span>cx.unit_deps(unit) {
+            metadata_of(<span class="kw-2">&amp;</span>dep.unit, cx, metas);
+        }
+    }
+    <span class="kw-2">&amp;</span>metas[unit]
+}
+
+<span class="kw">fn </span>compute_metadata(
+    unit: <span class="kw-2">&amp;</span>Unit,
+    cx: <span class="kw-2">&amp;</span>Context&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt;,
+    metas: <span class="kw-2">&amp;mut </span>HashMap&lt;Unit, MetaInfo&gt;,
+) -&gt; MetaInfo {
+    <span class="kw">let </span>bcx = <span class="kw-2">&amp;</span>cx.bcx;
+    <span class="kw">let </span><span class="kw-2">mut </span>hasher = StableHasher::new();
+
+    METADATA_VERSION.hash(<span class="kw-2">&amp;mut </span>hasher);
+
+    <span class="comment">// Unique metadata per (name, source, version) triple. This&#39;ll allow us
+    // to pull crates from anywhere without worrying about conflicts.
+    </span>unit.pkg
+        .package_id()
+        .stable_hash(bcx.ws.root())
+        .hash(<span class="kw-2">&amp;mut </span>hasher);
+
+    <span class="comment">// Also mix in enabled features to our metadata. This&#39;ll ensure that
+    // when changing feature sets each lib is separately cached.
+    </span>unit.features.hash(<span class="kw-2">&amp;mut </span>hasher);
+
+    <span class="comment">// Mix in the target-metadata of all the dependencies of this target.
+    </span><span class="kw">let </span><span class="kw-2">mut </span>deps_metadata = cx
+        .unit_deps(unit)
+        .iter()
+        .map(|dep| metadata_of(<span class="kw-2">&amp;</span>dep.unit, cx, metas).meta_hash)
+        .collect::&lt;Vec&lt;<span class="kw">_</span>&gt;&gt;();
+    deps_metadata.sort();
+    deps_metadata.hash(<span class="kw-2">&amp;mut </span>hasher);
+
+    <span class="comment">// Throw in the profile we&#39;re compiling with. This helps caching
+    // `panic=abort` and `panic=unwind` artifacts, additionally with various
+    // settings like debuginfo and whatnot.
+    </span>unit.profile.hash(<span class="kw-2">&amp;mut </span>hasher);
+    unit.mode.hash(<span class="kw-2">&amp;mut </span>hasher);
+    cx.lto[unit].hash(<span class="kw-2">&amp;mut </span>hasher);
+
+    <span class="comment">// Artifacts compiled for the host should have a different
+    // metadata piece than those compiled for the target, so make sure
+    // we throw in the unit&#39;s `kind` as well.  Use `fingerprint_hash`
+    // so that the StableHash doesn&#39;t change based on the pathnames
+    // of the custom target JSON spec files.
+    </span>unit.kind.fingerprint_hash().hash(<span class="kw-2">&amp;mut </span>hasher);
+
+    <span class="comment">// Finally throw in the target name/kind. This ensures that concurrent
+    // compiles of targets in the same crate don&#39;t collide.
+    </span>unit.target.name().hash(<span class="kw-2">&amp;mut </span>hasher);
+    unit.target.kind().hash(<span class="kw-2">&amp;mut </span>hasher);
+
+    hash_rustc_version(bcx, <span class="kw-2">&amp;mut </span>hasher);
+
+    <span class="kw">if </span>cx.bcx.ws.is_member(<span class="kw-2">&amp;</span>unit.pkg) {
+        <span class="comment">// This is primarily here for clippy. This ensures that the clippy
+        // artifacts are separate from the `check` ones.
+        </span><span class="kw">if let </span><span class="prelude-val">Some</span>(path) = <span class="kw-2">&amp;</span>cx.bcx.rustc().workspace_wrapper {
+            path.hash(<span class="kw-2">&amp;mut </span>hasher);
+        }
+    }
+
+    <span class="comment">// Seed the contents of `__CARGO_DEFAULT_LIB_METADATA` to the hasher if present.
+    // This should be the release channel, to get a different hash for each channel.
+    </span><span class="kw">if let </span><span class="prelude-val">Ok</span>(<span class="kw-2">ref </span>channel) = env::var(<span class="string">&quot;__CARGO_DEFAULT_LIB_METADATA&quot;</span>) {
+        channel.hash(<span class="kw-2">&amp;mut </span>hasher);
+    }
+
+    <span class="comment">// std units need to be kept separate from user dependencies. std crates
+    // are differentiated in the Unit with `is_std` (for things like
+    // `-Zforce-unstable-if-unmarked`), so they are always built separately.
+    // This isn&#39;t strictly necessary for build dependencies which probably
+    // don&#39;t need unstable support. A future experiment might be to set
+    // `is_std` to false for build dependencies so that they can be shared
+    // with user dependencies.
+    </span>unit.is_std.hash(<span class="kw-2">&amp;mut </span>hasher);
+
+    MetaInfo {
+        meta_hash: Metadata(hasher.finish()),
+        use_extra_filename: should_use_metadata(bcx, unit),
+    }
+}
+
+<span class="kw">fn </span>hash_rustc_version(bcx: <span class="kw-2">&amp;</span>BuildContext&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt;, hasher: <span class="kw-2">&amp;mut </span>StableHasher) {
+    <span class="kw">let </span>vers = <span class="kw-2">&amp;</span>bcx.rustc().version;
+    <span class="kw">if </span>vers.pre.is_empty() || bcx.config.cli_unstable().separate_nightlies {
+        <span class="comment">// For stable, keep the artifacts separate. This helps if someone is
+        // testing multiple versions, to avoid recompiles.
+        </span>bcx.rustc().verbose_version.hash(hasher);
+        <span class="kw">return</span>;
+    }
+    <span class="comment">// On &quot;nightly&quot;/&quot;beta&quot;/&quot;dev&quot;/etc, keep each &quot;channel&quot; separate. Don&#39;t hash
+    // the date/git information, so that whenever someone updates &quot;nightly&quot;,
+    // they won&#39;t have a bunch of stale artifacts in the target directory.
+    //
+    // This assumes that the first segment is the important bit (&quot;nightly&quot;,
+    // &quot;beta&quot;, &quot;dev&quot;, etc.). Skip other parts like the `.3` in `-beta.3`.
+    </span>vers.pre.split(<span class="string">&#39;.&#39;</span>).next().hash(hasher);
+    <span class="comment">// Keep &quot;host&quot; since some people switch hosts to implicitly change
+    // targets, (like gnu vs musl or gnu vs msvc). In the future, we may want
+    // to consider hashing `unit.kind.short_name()` instead.
+    </span>bcx.rustc().host.hash(hasher);
+    <span class="comment">// None of the other lines are important. Currently they are:
+    // binary: rustc  &lt;-- or &quot;rustdoc&quot;
+    // commit-hash: 38114ff16e7856f98b2b4be7ab4cd29b38bed59a
+    // commit-date: 2020-03-21
+    // host: x86_64-apple-darwin
+    // release: 1.44.0-nightly
+    // LLVM version: 9.0
+    //
+    // The backend version (&quot;LLVM version&quot;) might become more relevant in
+    // the future when cranelift sees more use, and people want to switch
+    // between different backends without recompiling.
+</span>}
+
+<span class="doccomment">/// Returns whether or not this unit should use a metadata hash.
+</span><span class="kw">fn </span>should_use_metadata(bcx: <span class="kw-2">&amp;</span>BuildContext&lt;<span class="lifetime">&#39;_</span>, <span class="lifetime">&#39;_</span>&gt;, unit: <span class="kw-2">&amp;</span>Unit) -&gt; bool {
+    <span class="kw">if </span>unit.mode.is_doc_test() || unit.mode.is_doc() {
+        <span class="comment">// Doc tests do not have metadata.
+        </span><span class="kw">return </span><span class="bool-val">false</span>;
+    }
+    <span class="kw">if </span>unit.mode.is_any_test() || unit.mode.is_check() {
+        <span class="comment">// These always use metadata.
+        </span><span class="kw">return </span><span class="bool-val">true</span>;
+    }
+    <span class="comment">// No metadata in these cases:
+    //
+    // - dylibs:
+    //   - if any dylib names are encoded in executables, so they can&#39;t be renamed.
+    //   - TODO: Maybe use `-install-name` on macOS or `-soname` on other UNIX systems
+    //     to specify the dylib name to be used by the linker instead of the filename.
+    // - Windows MSVC executables: The path to the PDB is embedded in the
+    //   executable, and we don&#39;t want the PDB path to include the hash in it.
+    // - wasm32-unknown-emscripten executables: When using emscripten, the path to the
+    //   .wasm file is embedded in the .js file, so we don&#39;t want the hash in there.
+    //
+    // This is only done for local packages, as we don&#39;t expect to export
+    // dependencies.
+    //
+    // The __CARGO_DEFAULT_LIB_METADATA env var is used to override this to
+    // force metadata in the hash. This is only used for building libstd. For
+    // example, if libstd is placed in a common location, we don&#39;t want a file
+    // named /usr/lib/libstd.so which could conflict with other rustc
+    // installs. In addition it prevents accidentally loading a libstd of a
+    // different compiler at runtime.
+    // See https://github.com/rust-lang/cargo/issues/3005
+    </span><span class="kw">let </span>short_name = bcx.target_data.short_name(<span class="kw-2">&amp;</span>unit.kind);
+    <span class="kw">if </span>(unit.target.is_dylib()
+        || unit.target.is_cdylib()
+        || (unit.target.is_executable() &amp;&amp; short_name == <span class="string">&quot;wasm32-unknown-emscripten&quot;</span>)
+        || (unit.target.is_executable() &amp;&amp; short_name.contains(<span class="string">&quot;msvc&quot;</span>)))
+        &amp;&amp; unit.pkg.package_id().source_id().is_path()
+        &amp;&amp; env::var(<span class="string">&quot;__CARGO_DEFAULT_LIB_METADATA&quot;</span>).is_err()
+    {
+        <span class="kw">return </span><span class="bool-val">false</span>;
+    }
+    <span class="bool-val">true
+</span>}
+</code></pre></div>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../../../" data-current-crate="cargo" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

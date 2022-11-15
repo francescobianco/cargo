@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":[["CompileKind","Indicator for how a unit is being compiled."]],"struct":[["CompileTarget","Abstraction for the representation of a compilation target that Cargo has."]]};

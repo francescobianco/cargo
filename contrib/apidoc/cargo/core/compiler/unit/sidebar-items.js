@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["InternerState",""],["Unit","All information needed to define a unit."],["UnitInner","Internal fields of `Unit` which `Unit` will dereference to."],["UnitInterner","A small structure used to “intern” `Unit` values."]]};

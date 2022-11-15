@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"constant":[["VERSION",""]],"fn":[["emit_serialized_unit_graph",""]],"struct":[["SerializedUnit",""],["SerializedUnitDep",""],["SerializedUnitGraph",""],["UnitDep","A unit dependency."]],"type":[["UnitGraph","The dependency graph of Units."]]};

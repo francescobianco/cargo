@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["escape_key_part",""]],"struct":[["ConfigKey","Key for a configuration variable."]]};

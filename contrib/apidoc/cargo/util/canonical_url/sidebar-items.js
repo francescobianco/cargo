@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["CanonicalUrl","A newtype wrapper around `Url` which represents a “canonical” version of an original URL."]]};

@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":[["ResolveVersion","A version to indicate how a `Cargo.lock` should be serialized."]],"struct":[["Resolve","Represents a fully-resolved package dependency graph. Each node in the graph is a package and edges represent dependencies between packages."]]};

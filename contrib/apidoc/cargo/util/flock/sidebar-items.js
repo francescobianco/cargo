@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":[["State",""]],"fn":[["acquire","Acquires a lock on a file in a “nice” manner."]],"mod":[["sys",""]],"struct":[["FileLock",""],["Filesystem","A “filesystem” is intended to be a globally shared, hence locked, resource in Cargo."]]};

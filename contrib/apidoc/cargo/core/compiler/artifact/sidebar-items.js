@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["get_env","Return all environment variables for the given unit-dependencies if artifacts are present."],["unit_artifact_type_name_upper",""]]};

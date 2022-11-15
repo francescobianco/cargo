@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":[["compilation_files",""]],"struct":[["Context","Collection of all the stuff that is needed to perform a build."]]};

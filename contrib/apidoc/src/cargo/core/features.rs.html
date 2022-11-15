@@ -1,0 +1,2160 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Source of the Rust file `src/cargo/core/features.rs`."><meta name="keywords" content="rust, rustlang, rust-lang"><title>features.rs - source</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../source-script.js"></script><script defer src="../../../source-files.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc source"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../cargo/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../cargo/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div></a></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../cargo/index.html"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="example-wrap"><pre class="line-numbers"><span id="1">1</span>
+<span id="2">2</span>
+<span id="3">3</span>
+<span id="4">4</span>
+<span id="5">5</span>
+<span id="6">6</span>
+<span id="7">7</span>
+<span id="8">8</span>
+<span id="9">9</span>
+<span id="10">10</span>
+<span id="11">11</span>
+<span id="12">12</span>
+<span id="13">13</span>
+<span id="14">14</span>
+<span id="15">15</span>
+<span id="16">16</span>
+<span id="17">17</span>
+<span id="18">18</span>
+<span id="19">19</span>
+<span id="20">20</span>
+<span id="21">21</span>
+<span id="22">22</span>
+<span id="23">23</span>
+<span id="24">24</span>
+<span id="25">25</span>
+<span id="26">26</span>
+<span id="27">27</span>
+<span id="28">28</span>
+<span id="29">29</span>
+<span id="30">30</span>
+<span id="31">31</span>
+<span id="32">32</span>
+<span id="33">33</span>
+<span id="34">34</span>
+<span id="35">35</span>
+<span id="36">36</span>
+<span id="37">37</span>
+<span id="38">38</span>
+<span id="39">39</span>
+<span id="40">40</span>
+<span id="41">41</span>
+<span id="42">42</span>
+<span id="43">43</span>
+<span id="44">44</span>
+<span id="45">45</span>
+<span id="46">46</span>
+<span id="47">47</span>
+<span id="48">48</span>
+<span id="49">49</span>
+<span id="50">50</span>
+<span id="51">51</span>
+<span id="52">52</span>
+<span id="53">53</span>
+<span id="54">54</span>
+<span id="55">55</span>
+<span id="56">56</span>
+<span id="57">57</span>
+<span id="58">58</span>
+<span id="59">59</span>
+<span id="60">60</span>
+<span id="61">61</span>
+<span id="62">62</span>
+<span id="63">63</span>
+<span id="64">64</span>
+<span id="65">65</span>
+<span id="66">66</span>
+<span id="67">67</span>
+<span id="68">68</span>
+<span id="69">69</span>
+<span id="70">70</span>
+<span id="71">71</span>
+<span id="72">72</span>
+<span id="73">73</span>
+<span id="74">74</span>
+<span id="75">75</span>
+<span id="76">76</span>
+<span id="77">77</span>
+<span id="78">78</span>
+<span id="79">79</span>
+<span id="80">80</span>
+<span id="81">81</span>
+<span id="82">82</span>
+<span id="83">83</span>
+<span id="84">84</span>
+<span id="85">85</span>
+<span id="86">86</span>
+<span id="87">87</span>
+<span id="88">88</span>
+<span id="89">89</span>
+<span id="90">90</span>
+<span id="91">91</span>
+<span id="92">92</span>
+<span id="93">93</span>
+<span id="94">94</span>
+<span id="95">95</span>
+<span id="96">96</span>
+<span id="97">97</span>
+<span id="98">98</span>
+<span id="99">99</span>
+<span id="100">100</span>
+<span id="101">101</span>
+<span id="102">102</span>
+<span id="103">103</span>
+<span id="104">104</span>
+<span id="105">105</span>
+<span id="106">106</span>
+<span id="107">107</span>
+<span id="108">108</span>
+<span id="109">109</span>
+<span id="110">110</span>
+<span id="111">111</span>
+<span id="112">112</span>
+<span id="113">113</span>
+<span id="114">114</span>
+<span id="115">115</span>
+<span id="116">116</span>
+<span id="117">117</span>
+<span id="118">118</span>
+<span id="119">119</span>
+<span id="120">120</span>
+<span id="121">121</span>
+<span id="122">122</span>
+<span id="123">123</span>
+<span id="124">124</span>
+<span id="125">125</span>
+<span id="126">126</span>
+<span id="127">127</span>
+<span id="128">128</span>
+<span id="129">129</span>
+<span id="130">130</span>
+<span id="131">131</span>
+<span id="132">132</span>
+<span id="133">133</span>
+<span id="134">134</span>
+<span id="135">135</span>
+<span id="136">136</span>
+<span id="137">137</span>
+<span id="138">138</span>
+<span id="139">139</span>
+<span id="140">140</span>
+<span id="141">141</span>
+<span id="142">142</span>
+<span id="143">143</span>
+<span id="144">144</span>
+<span id="145">145</span>
+<span id="146">146</span>
+<span id="147">147</span>
+<span id="148">148</span>
+<span id="149">149</span>
+<span id="150">150</span>
+<span id="151">151</span>
+<span id="152">152</span>
+<span id="153">153</span>
+<span id="154">154</span>
+<span id="155">155</span>
+<span id="156">156</span>
+<span id="157">157</span>
+<span id="158">158</span>
+<span id="159">159</span>
+<span id="160">160</span>
+<span id="161">161</span>
+<span id="162">162</span>
+<span id="163">163</span>
+<span id="164">164</span>
+<span id="165">165</span>
+<span id="166">166</span>
+<span id="167">167</span>
+<span id="168">168</span>
+<span id="169">169</span>
+<span id="170">170</span>
+<span id="171">171</span>
+<span id="172">172</span>
+<span id="173">173</span>
+<span id="174">174</span>
+<span id="175">175</span>
+<span id="176">176</span>
+<span id="177">177</span>
+<span id="178">178</span>
+<span id="179">179</span>
+<span id="180">180</span>
+<span id="181">181</span>
+<span id="182">182</span>
+<span id="183">183</span>
+<span id="184">184</span>
+<span id="185">185</span>
+<span id="186">186</span>
+<span id="187">187</span>
+<span id="188">188</span>
+<span id="189">189</span>
+<span id="190">190</span>
+<span id="191">191</span>
+<span id="192">192</span>
+<span id="193">193</span>
+<span id="194">194</span>
+<span id="195">195</span>
+<span id="196">196</span>
+<span id="197">197</span>
+<span id="198">198</span>
+<span id="199">199</span>
+<span id="200">200</span>
+<span id="201">201</span>
+<span id="202">202</span>
+<span id="203">203</span>
+<span id="204">204</span>
+<span id="205">205</span>
+<span id="206">206</span>
+<span id="207">207</span>
+<span id="208">208</span>
+<span id="209">209</span>
+<span id="210">210</span>
+<span id="211">211</span>
+<span id="212">212</span>
+<span id="213">213</span>
+<span id="214">214</span>
+<span id="215">215</span>
+<span id="216">216</span>
+<span id="217">217</span>
+<span id="218">218</span>
+<span id="219">219</span>
+<span id="220">220</span>
+<span id="221">221</span>
+<span id="222">222</span>
+<span id="223">223</span>
+<span id="224">224</span>
+<span id="225">225</span>
+<span id="226">226</span>
+<span id="227">227</span>
+<span id="228">228</span>
+<span id="229">229</span>
+<span id="230">230</span>
+<span id="231">231</span>
+<span id="232">232</span>
+<span id="233">233</span>
+<span id="234">234</span>
+<span id="235">235</span>
+<span id="236">236</span>
+<span id="237">237</span>
+<span id="238">238</span>
+<span id="239">239</span>
+<span id="240">240</span>
+<span id="241">241</span>
+<span id="242">242</span>
+<span id="243">243</span>
+<span id="244">244</span>
+<span id="245">245</span>
+<span id="246">246</span>
+<span id="247">247</span>
+<span id="248">248</span>
+<span id="249">249</span>
+<span id="250">250</span>
+<span id="251">251</span>
+<span id="252">252</span>
+<span id="253">253</span>
+<span id="254">254</span>
+<span id="255">255</span>
+<span id="256">256</span>
+<span id="257">257</span>
+<span id="258">258</span>
+<span id="259">259</span>
+<span id="260">260</span>
+<span id="261">261</span>
+<span id="262">262</span>
+<span id="263">263</span>
+<span id="264">264</span>
+<span id="265">265</span>
+<span id="266">266</span>
+<span id="267">267</span>
+<span id="268">268</span>
+<span id="269">269</span>
+<span id="270">270</span>
+<span id="271">271</span>
+<span id="272">272</span>
+<span id="273">273</span>
+<span id="274">274</span>
+<span id="275">275</span>
+<span id="276">276</span>
+<span id="277">277</span>
+<span id="278">278</span>
+<span id="279">279</span>
+<span id="280">280</span>
+<span id="281">281</span>
+<span id="282">282</span>
+<span id="283">283</span>
+<span id="284">284</span>
+<span id="285">285</span>
+<span id="286">286</span>
+<span id="287">287</span>
+<span id="288">288</span>
+<span id="289">289</span>
+<span id="290">290</span>
+<span id="291">291</span>
+<span id="292">292</span>
+<span id="293">293</span>
+<span id="294">294</span>
+<span id="295">295</span>
+<span id="296">296</span>
+<span id="297">297</span>
+<span id="298">298</span>
+<span id="299">299</span>
+<span id="300">300</span>
+<span id="301">301</span>
+<span id="302">302</span>
+<span id="303">303</span>
+<span id="304">304</span>
+<span id="305">305</span>
+<span id="306">306</span>
+<span id="307">307</span>
+<span id="308">308</span>
+<span id="309">309</span>
+<span id="310">310</span>
+<span id="311">311</span>
+<span id="312">312</span>
+<span id="313">313</span>
+<span id="314">314</span>
+<span id="315">315</span>
+<span id="316">316</span>
+<span id="317">317</span>
+<span id="318">318</span>
+<span id="319">319</span>
+<span id="320">320</span>
+<span id="321">321</span>
+<span id="322">322</span>
+<span id="323">323</span>
+<span id="324">324</span>
+<span id="325">325</span>
+<span id="326">326</span>
+<span id="327">327</span>
+<span id="328">328</span>
+<span id="329">329</span>
+<span id="330">330</span>
+<span id="331">331</span>
+<span id="332">332</span>
+<span id="333">333</span>
+<span id="334">334</span>
+<span id="335">335</span>
+<span id="336">336</span>
+<span id="337">337</span>
+<span id="338">338</span>
+<span id="339">339</span>
+<span id="340">340</span>
+<span id="341">341</span>
+<span id="342">342</span>
+<span id="343">343</span>
+<span id="344">344</span>
+<span id="345">345</span>
+<span id="346">346</span>
+<span id="347">347</span>
+<span id="348">348</span>
+<span id="349">349</span>
+<span id="350">350</span>
+<span id="351">351</span>
+<span id="352">352</span>
+<span id="353">353</span>
+<span id="354">354</span>
+<span id="355">355</span>
+<span id="356">356</span>
+<span id="357">357</span>
+<span id="358">358</span>
+<span id="359">359</span>
+<span id="360">360</span>
+<span id="361">361</span>
+<span id="362">362</span>
+<span id="363">363</span>
+<span id="364">364</span>
+<span id="365">365</span>
+<span id="366">366</span>
+<span id="367">367</span>
+<span id="368">368</span>
+<span id="369">369</span>
+<span id="370">370</span>
+<span id="371">371</span>
+<span id="372">372</span>
+<span id="373">373</span>
+<span id="374">374</span>
+<span id="375">375</span>
+<span id="376">376</span>
+<span id="377">377</span>
+<span id="378">378</span>
+<span id="379">379</span>
+<span id="380">380</span>
+<span id="381">381</span>
+<span id="382">382</span>
+<span id="383">383</span>
+<span id="384">384</span>
+<span id="385">385</span>
+<span id="386">386</span>
+<span id="387">387</span>
+<span id="388">388</span>
+<span id="389">389</span>
+<span id="390">390</span>
+<span id="391">391</span>
+<span id="392">392</span>
+<span id="393">393</span>
+<span id="394">394</span>
+<span id="395">395</span>
+<span id="396">396</span>
+<span id="397">397</span>
+<span id="398">398</span>
+<span id="399">399</span>
+<span id="400">400</span>
+<span id="401">401</span>
+<span id="402">402</span>
+<span id="403">403</span>
+<span id="404">404</span>
+<span id="405">405</span>
+<span id="406">406</span>
+<span id="407">407</span>
+<span id="408">408</span>
+<span id="409">409</span>
+<span id="410">410</span>
+<span id="411">411</span>
+<span id="412">412</span>
+<span id="413">413</span>
+<span id="414">414</span>
+<span id="415">415</span>
+<span id="416">416</span>
+<span id="417">417</span>
+<span id="418">418</span>
+<span id="419">419</span>
+<span id="420">420</span>
+<span id="421">421</span>
+<span id="422">422</span>
+<span id="423">423</span>
+<span id="424">424</span>
+<span id="425">425</span>
+<span id="426">426</span>
+<span id="427">427</span>
+<span id="428">428</span>
+<span id="429">429</span>
+<span id="430">430</span>
+<span id="431">431</span>
+<span id="432">432</span>
+<span id="433">433</span>
+<span id="434">434</span>
+<span id="435">435</span>
+<span id="436">436</span>
+<span id="437">437</span>
+<span id="438">438</span>
+<span id="439">439</span>
+<span id="440">440</span>
+<span id="441">441</span>
+<span id="442">442</span>
+<span id="443">443</span>
+<span id="444">444</span>
+<span id="445">445</span>
+<span id="446">446</span>
+<span id="447">447</span>
+<span id="448">448</span>
+<span id="449">449</span>
+<span id="450">450</span>
+<span id="451">451</span>
+<span id="452">452</span>
+<span id="453">453</span>
+<span id="454">454</span>
+<span id="455">455</span>
+<span id="456">456</span>
+<span id="457">457</span>
+<span id="458">458</span>
+<span id="459">459</span>
+<span id="460">460</span>
+<span id="461">461</span>
+<span id="462">462</span>
+<span id="463">463</span>
+<span id="464">464</span>
+<span id="465">465</span>
+<span id="466">466</span>
+<span id="467">467</span>
+<span id="468">468</span>
+<span id="469">469</span>
+<span id="470">470</span>
+<span id="471">471</span>
+<span id="472">472</span>
+<span id="473">473</span>
+<span id="474">474</span>
+<span id="475">475</span>
+<span id="476">476</span>
+<span id="477">477</span>
+<span id="478">478</span>
+<span id="479">479</span>
+<span id="480">480</span>
+<span id="481">481</span>
+<span id="482">482</span>
+<span id="483">483</span>
+<span id="484">484</span>
+<span id="485">485</span>
+<span id="486">486</span>
+<span id="487">487</span>
+<span id="488">488</span>
+<span id="489">489</span>
+<span id="490">490</span>
+<span id="491">491</span>
+<span id="492">492</span>
+<span id="493">493</span>
+<span id="494">494</span>
+<span id="495">495</span>
+<span id="496">496</span>
+<span id="497">497</span>
+<span id="498">498</span>
+<span id="499">499</span>
+<span id="500">500</span>
+<span id="501">501</span>
+<span id="502">502</span>
+<span id="503">503</span>
+<span id="504">504</span>
+<span id="505">505</span>
+<span id="506">506</span>
+<span id="507">507</span>
+<span id="508">508</span>
+<span id="509">509</span>
+<span id="510">510</span>
+<span id="511">511</span>
+<span id="512">512</span>
+<span id="513">513</span>
+<span id="514">514</span>
+<span id="515">515</span>
+<span id="516">516</span>
+<span id="517">517</span>
+<span id="518">518</span>
+<span id="519">519</span>
+<span id="520">520</span>
+<span id="521">521</span>
+<span id="522">522</span>
+<span id="523">523</span>
+<span id="524">524</span>
+<span id="525">525</span>
+<span id="526">526</span>
+<span id="527">527</span>
+<span id="528">528</span>
+<span id="529">529</span>
+<span id="530">530</span>
+<span id="531">531</span>
+<span id="532">532</span>
+<span id="533">533</span>
+<span id="534">534</span>
+<span id="535">535</span>
+<span id="536">536</span>
+<span id="537">537</span>
+<span id="538">538</span>
+<span id="539">539</span>
+<span id="540">540</span>
+<span id="541">541</span>
+<span id="542">542</span>
+<span id="543">543</span>
+<span id="544">544</span>
+<span id="545">545</span>
+<span id="546">546</span>
+<span id="547">547</span>
+<span id="548">548</span>
+<span id="549">549</span>
+<span id="550">550</span>
+<span id="551">551</span>
+<span id="552">552</span>
+<span id="553">553</span>
+<span id="554">554</span>
+<span id="555">555</span>
+<span id="556">556</span>
+<span id="557">557</span>
+<span id="558">558</span>
+<span id="559">559</span>
+<span id="560">560</span>
+<span id="561">561</span>
+<span id="562">562</span>
+<span id="563">563</span>
+<span id="564">564</span>
+<span id="565">565</span>
+<span id="566">566</span>
+<span id="567">567</span>
+<span id="568">568</span>
+<span id="569">569</span>
+<span id="570">570</span>
+<span id="571">571</span>
+<span id="572">572</span>
+<span id="573">573</span>
+<span id="574">574</span>
+<span id="575">575</span>
+<span id="576">576</span>
+<span id="577">577</span>
+<span id="578">578</span>
+<span id="579">579</span>
+<span id="580">580</span>
+<span id="581">581</span>
+<span id="582">582</span>
+<span id="583">583</span>
+<span id="584">584</span>
+<span id="585">585</span>
+<span id="586">586</span>
+<span id="587">587</span>
+<span id="588">588</span>
+<span id="589">589</span>
+<span id="590">590</span>
+<span id="591">591</span>
+<span id="592">592</span>
+<span id="593">593</span>
+<span id="594">594</span>
+<span id="595">595</span>
+<span id="596">596</span>
+<span id="597">597</span>
+<span id="598">598</span>
+<span id="599">599</span>
+<span id="600">600</span>
+<span id="601">601</span>
+<span id="602">602</span>
+<span id="603">603</span>
+<span id="604">604</span>
+<span id="605">605</span>
+<span id="606">606</span>
+<span id="607">607</span>
+<span id="608">608</span>
+<span id="609">609</span>
+<span id="610">610</span>
+<span id="611">611</span>
+<span id="612">612</span>
+<span id="613">613</span>
+<span id="614">614</span>
+<span id="615">615</span>
+<span id="616">616</span>
+<span id="617">617</span>
+<span id="618">618</span>
+<span id="619">619</span>
+<span id="620">620</span>
+<span id="621">621</span>
+<span id="622">622</span>
+<span id="623">623</span>
+<span id="624">624</span>
+<span id="625">625</span>
+<span id="626">626</span>
+<span id="627">627</span>
+<span id="628">628</span>
+<span id="629">629</span>
+<span id="630">630</span>
+<span id="631">631</span>
+<span id="632">632</span>
+<span id="633">633</span>
+<span id="634">634</span>
+<span id="635">635</span>
+<span id="636">636</span>
+<span id="637">637</span>
+<span id="638">638</span>
+<span id="639">639</span>
+<span id="640">640</span>
+<span id="641">641</span>
+<span id="642">642</span>
+<span id="643">643</span>
+<span id="644">644</span>
+<span id="645">645</span>
+<span id="646">646</span>
+<span id="647">647</span>
+<span id="648">648</span>
+<span id="649">649</span>
+<span id="650">650</span>
+<span id="651">651</span>
+<span id="652">652</span>
+<span id="653">653</span>
+<span id="654">654</span>
+<span id="655">655</span>
+<span id="656">656</span>
+<span id="657">657</span>
+<span id="658">658</span>
+<span id="659">659</span>
+<span id="660">660</span>
+<span id="661">661</span>
+<span id="662">662</span>
+<span id="663">663</span>
+<span id="664">664</span>
+<span id="665">665</span>
+<span id="666">666</span>
+<span id="667">667</span>
+<span id="668">668</span>
+<span id="669">669</span>
+<span id="670">670</span>
+<span id="671">671</span>
+<span id="672">672</span>
+<span id="673">673</span>
+<span id="674">674</span>
+<span id="675">675</span>
+<span id="676">676</span>
+<span id="677">677</span>
+<span id="678">678</span>
+<span id="679">679</span>
+<span id="680">680</span>
+<span id="681">681</span>
+<span id="682">682</span>
+<span id="683">683</span>
+<span id="684">684</span>
+<span id="685">685</span>
+<span id="686">686</span>
+<span id="687">687</span>
+<span id="688">688</span>
+<span id="689">689</span>
+<span id="690">690</span>
+<span id="691">691</span>
+<span id="692">692</span>
+<span id="693">693</span>
+<span id="694">694</span>
+<span id="695">695</span>
+<span id="696">696</span>
+<span id="697">697</span>
+<span id="698">698</span>
+<span id="699">699</span>
+<span id="700">700</span>
+<span id="701">701</span>
+<span id="702">702</span>
+<span id="703">703</span>
+<span id="704">704</span>
+<span id="705">705</span>
+<span id="706">706</span>
+<span id="707">707</span>
+<span id="708">708</span>
+<span id="709">709</span>
+<span id="710">710</span>
+<span id="711">711</span>
+<span id="712">712</span>
+<span id="713">713</span>
+<span id="714">714</span>
+<span id="715">715</span>
+<span id="716">716</span>
+<span id="717">717</span>
+<span id="718">718</span>
+<span id="719">719</span>
+<span id="720">720</span>
+<span id="721">721</span>
+<span id="722">722</span>
+<span id="723">723</span>
+<span id="724">724</span>
+<span id="725">725</span>
+<span id="726">726</span>
+<span id="727">727</span>
+<span id="728">728</span>
+<span id="729">729</span>
+<span id="730">730</span>
+<span id="731">731</span>
+<span id="732">732</span>
+<span id="733">733</span>
+<span id="734">734</span>
+<span id="735">735</span>
+<span id="736">736</span>
+<span id="737">737</span>
+<span id="738">738</span>
+<span id="739">739</span>
+<span id="740">740</span>
+<span id="741">741</span>
+<span id="742">742</span>
+<span id="743">743</span>
+<span id="744">744</span>
+<span id="745">745</span>
+<span id="746">746</span>
+<span id="747">747</span>
+<span id="748">748</span>
+<span id="749">749</span>
+<span id="750">750</span>
+<span id="751">751</span>
+<span id="752">752</span>
+<span id="753">753</span>
+<span id="754">754</span>
+<span id="755">755</span>
+<span id="756">756</span>
+<span id="757">757</span>
+<span id="758">758</span>
+<span id="759">759</span>
+<span id="760">760</span>
+<span id="761">761</span>
+<span id="762">762</span>
+<span id="763">763</span>
+<span id="764">764</span>
+<span id="765">765</span>
+<span id="766">766</span>
+<span id="767">767</span>
+<span id="768">768</span>
+<span id="769">769</span>
+<span id="770">770</span>
+<span id="771">771</span>
+<span id="772">772</span>
+<span id="773">773</span>
+<span id="774">774</span>
+<span id="775">775</span>
+<span id="776">776</span>
+<span id="777">777</span>
+<span id="778">778</span>
+<span id="779">779</span>
+<span id="780">780</span>
+<span id="781">781</span>
+<span id="782">782</span>
+<span id="783">783</span>
+<span id="784">784</span>
+<span id="785">785</span>
+<span id="786">786</span>
+<span id="787">787</span>
+<span id="788">788</span>
+<span id="789">789</span>
+<span id="790">790</span>
+<span id="791">791</span>
+<span id="792">792</span>
+<span id="793">793</span>
+<span id="794">794</span>
+<span id="795">795</span>
+<span id="796">796</span>
+<span id="797">797</span>
+<span id="798">798</span>
+<span id="799">799</span>
+<span id="800">800</span>
+<span id="801">801</span>
+<span id="802">802</span>
+<span id="803">803</span>
+<span id="804">804</span>
+<span id="805">805</span>
+<span id="806">806</span>
+<span id="807">807</span>
+<span id="808">808</span>
+<span id="809">809</span>
+<span id="810">810</span>
+<span id="811">811</span>
+<span id="812">812</span>
+<span id="813">813</span>
+<span id="814">814</span>
+<span id="815">815</span>
+<span id="816">816</span>
+<span id="817">817</span>
+<span id="818">818</span>
+<span id="819">819</span>
+<span id="820">820</span>
+<span id="821">821</span>
+<span id="822">822</span>
+<span id="823">823</span>
+<span id="824">824</span>
+<span id="825">825</span>
+<span id="826">826</span>
+<span id="827">827</span>
+<span id="828">828</span>
+<span id="829">829</span>
+<span id="830">830</span>
+<span id="831">831</span>
+<span id="832">832</span>
+<span id="833">833</span>
+<span id="834">834</span>
+<span id="835">835</span>
+<span id="836">836</span>
+<span id="837">837</span>
+<span id="838">838</span>
+<span id="839">839</span>
+<span id="840">840</span>
+<span id="841">841</span>
+<span id="842">842</span>
+<span id="843">843</span>
+<span id="844">844</span>
+<span id="845">845</span>
+<span id="846">846</span>
+<span id="847">847</span>
+<span id="848">848</span>
+<span id="849">849</span>
+<span id="850">850</span>
+<span id="851">851</span>
+<span id="852">852</span>
+<span id="853">853</span>
+<span id="854">854</span>
+<span id="855">855</span>
+<span id="856">856</span>
+<span id="857">857</span>
+<span id="858">858</span>
+<span id="859">859</span>
+<span id="860">860</span>
+<span id="861">861</span>
+<span id="862">862</span>
+<span id="863">863</span>
+<span id="864">864</span>
+<span id="865">865</span>
+<span id="866">866</span>
+<span id="867">867</span>
+<span id="868">868</span>
+<span id="869">869</span>
+<span id="870">870</span>
+<span id="871">871</span>
+<span id="872">872</span>
+<span id="873">873</span>
+<span id="874">874</span>
+<span id="875">875</span>
+<span id="876">876</span>
+<span id="877">877</span>
+<span id="878">878</span>
+<span id="879">879</span>
+<span id="880">880</span>
+<span id="881">881</span>
+<span id="882">882</span>
+<span id="883">883</span>
+<span id="884">884</span>
+<span id="885">885</span>
+<span id="886">886</span>
+<span id="887">887</span>
+<span id="888">888</span>
+<span id="889">889</span>
+<span id="890">890</span>
+<span id="891">891</span>
+<span id="892">892</span>
+<span id="893">893</span>
+<span id="894">894</span>
+<span id="895">895</span>
+<span id="896">896</span>
+<span id="897">897</span>
+<span id="898">898</span>
+<span id="899">899</span>
+<span id="900">900</span>
+<span id="901">901</span>
+<span id="902">902</span>
+<span id="903">903</span>
+<span id="904">904</span>
+<span id="905">905</span>
+<span id="906">906</span>
+<span id="907">907</span>
+<span id="908">908</span>
+<span id="909">909</span>
+<span id="910">910</span>
+<span id="911">911</span>
+<span id="912">912</span>
+<span id="913">913</span>
+<span id="914">914</span>
+<span id="915">915</span>
+<span id="916">916</span>
+<span id="917">917</span>
+<span id="918">918</span>
+<span id="919">919</span>
+<span id="920">920</span>
+<span id="921">921</span>
+<span id="922">922</span>
+<span id="923">923</span>
+<span id="924">924</span>
+<span id="925">925</span>
+<span id="926">926</span>
+<span id="927">927</span>
+<span id="928">928</span>
+<span id="929">929</span>
+<span id="930">930</span>
+<span id="931">931</span>
+<span id="932">932</span>
+<span id="933">933</span>
+<span id="934">934</span>
+<span id="935">935</span>
+<span id="936">936</span>
+<span id="937">937</span>
+<span id="938">938</span>
+<span id="939">939</span>
+<span id="940">940</span>
+<span id="941">941</span>
+<span id="942">942</span>
+<span id="943">943</span>
+<span id="944">944</span>
+<span id="945">945</span>
+<span id="946">946</span>
+<span id="947">947</span>
+<span id="948">948</span>
+<span id="949">949</span>
+<span id="950">950</span>
+<span id="951">951</span>
+<span id="952">952</span>
+<span id="953">953</span>
+<span id="954">954</span>
+<span id="955">955</span>
+<span id="956">956</span>
+<span id="957">957</span>
+<span id="958">958</span>
+<span id="959">959</span>
+<span id="960">960</span>
+<span id="961">961</span>
+<span id="962">962</span>
+<span id="963">963</span>
+<span id="964">964</span>
+<span id="965">965</span>
+<span id="966">966</span>
+<span id="967">967</span>
+<span id="968">968</span>
+<span id="969">969</span>
+<span id="970">970</span>
+<span id="971">971</span>
+<span id="972">972</span>
+<span id="973">973</span>
+<span id="974">974</span>
+<span id="975">975</span>
+<span id="976">976</span>
+<span id="977">977</span>
+<span id="978">978</span>
+<span id="979">979</span>
+<span id="980">980</span>
+<span id="981">981</span>
+<span id="982">982</span>
+<span id="983">983</span>
+<span id="984">984</span>
+<span id="985">985</span>
+<span id="986">986</span>
+<span id="987">987</span>
+<span id="988">988</span>
+<span id="989">989</span>
+<span id="990">990</span>
+<span id="991">991</span>
+<span id="992">992</span>
+<span id="993">993</span>
+<span id="994">994</span>
+<span id="995">995</span>
+<span id="996">996</span>
+<span id="997">997</span>
+<span id="998">998</span>
+<span id="999">999</span>
+<span id="1000">1000</span>
+<span id="1001">1001</span>
+<span id="1002">1002</span>
+<span id="1003">1003</span>
+<span id="1004">1004</span>
+<span id="1005">1005</span>
+<span id="1006">1006</span>
+<span id="1007">1007</span>
+<span id="1008">1008</span>
+<span id="1009">1009</span>
+<span id="1010">1010</span>
+<span id="1011">1011</span>
+<span id="1012">1012</span>
+<span id="1013">1013</span>
+<span id="1014">1014</span>
+<span id="1015">1015</span>
+<span id="1016">1016</span>
+<span id="1017">1017</span>
+<span id="1018">1018</span>
+<span id="1019">1019</span>
+<span id="1020">1020</span>
+<span id="1021">1021</span>
+<span id="1022">1022</span>
+<span id="1023">1023</span>
+<span id="1024">1024</span>
+<span id="1025">1025</span>
+<span id="1026">1026</span>
+<span id="1027">1027</span>
+<span id="1028">1028</span>
+<span id="1029">1029</span>
+<span id="1030">1030</span>
+<span id="1031">1031</span>
+<span id="1032">1032</span>
+<span id="1033">1033</span>
+<span id="1034">1034</span>
+<span id="1035">1035</span>
+<span id="1036">1036</span>
+<span id="1037">1037</span>
+<span id="1038">1038</span>
+<span id="1039">1039</span>
+<span id="1040">1040</span>
+<span id="1041">1041</span>
+<span id="1042">1042</span>
+<span id="1043">1043</span>
+<span id="1044">1044</span>
+<span id="1045">1045</span>
+<span id="1046">1046</span>
+<span id="1047">1047</span>
+<span id="1048">1048</span>
+<span id="1049">1049</span>
+<span id="1050">1050</span>
+<span id="1051">1051</span>
+<span id="1052">1052</span>
+<span id="1053">1053</span>
+<span id="1054">1054</span>
+<span id="1055">1055</span>
+<span id="1056">1056</span>
+<span id="1057">1057</span>
+<span id="1058">1058</span>
+<span id="1059">1059</span>
+<span id="1060">1060</span>
+<span id="1061">1061</span>
+<span id="1062">1062</span>
+<span id="1063">1063</span>
+<span id="1064">1064</span>
+<span id="1065">1065</span>
+<span id="1066">1066</span>
+<span id="1067">1067</span>
+<span id="1068">1068</span>
+<span id="1069">1069</span>
+<span id="1070">1070</span>
+<span id="1071">1071</span>
+<span id="1072">1072</span>
+<span id="1073">1073</span>
+<span id="1074">1074</span>
+<span id="1075">1075</span>
+<span id="1076">1076</span>
+<span id="1077">1077</span>
+<span id="1078">1078</span>
+<span id="1079">1079</span>
+</pre><pre class="rust"><code><span class="doccomment">//! Support for nightly features in Cargo itself.
+//!
+//! This file is the version of `feature_gate.rs` in upstream Rust for Cargo
+//! itself and is intended to be the avenue for which new features in Cargo are
+//! gated by default and then eventually stabilized. All known stable and
+//! unstable features are tracked in this file.
+//!
+//! If you&#39;re reading this then you&#39;re likely interested in adding a feature to
+//! Cargo, and the good news is that it shouldn&#39;t be too hard! First determine
+//! how the feature should be gated:
+//!
+//! * New syntax in Cargo.toml should use `cargo-features`.
+//! * New CLI options should use `-Z unstable-options`.
+//! * New functionality that may not have an interface, or the interface has
+//!   not yet been designed, or for more complex features that affect multiple
+//!   parts of Cargo should use a new `-Z` flag.
+//!
+//! See below for more details.
+//!
+//! When adding new tests for your feature, usually the tests should go into a
+//! new module of the testsuite. See
+//! &lt;https://doc.crates.io/contrib/tests/writing.html&gt; for more information on
+//! writing tests. Particularly, check out the &quot;Testing Nightly Features&quot;
+//! section for testing unstable features.
+//!
+//! After you have added your feature, be sure to update the unstable
+//! documentation at `src/doc/src/reference/unstable.md` to include a short
+//! description of how to use your new feature.
+//!
+//! And hopefully that&#39;s it!
+//!
+//! ## New Cargo.toml syntax
+//!
+//! The steps for adding new Cargo.toml syntax are:
+//!
+//! 1. Add the cargo-features unstable gate. Search below for &quot;look here&quot; to
+//!    find the [`features!`] macro invocation and add your feature to the list.
+//!
+//! 2. Update the Cargo.toml parsing code to handle your new feature.
+//!
+//! 3. Wherever you added the new parsing code, call
+//!    `features.require(Feature::my_feature_name())?` if the new syntax is
+//!    used. This will return an error if the user hasn&#39;t listed the feature
+//!    in `cargo-features` or this is not the nightly channel.
+//!
+//! ## `-Z unstable-options`
+//!
+//! `-Z unstable-options` is intended to force the user to opt-in to new CLI
+//! flags, options, and new subcommands.
+//!
+//! The steps to add a new command-line option are:
+//!
+//! 1. Add the option to the CLI parsing code. In the help text, be sure to
+//!    include `(unstable)` to note that this is an unstable option.
+//! 2. Where the CLI option is loaded, be sure to call
+//!    [`CliUnstable::fail_if_stable_opt`]. This will return an error if `-Z
+//!    unstable options` was not passed.
+//!
+//! ## `-Z` options
+//!
+//! The steps to add a new `-Z` option are:
+//!
+//! 1. Add the option to the [`CliUnstable`] struct below. Flags can take an
+//!    optional value if you want.
+//! 2. Update the [`CliUnstable::add`] function to parse the flag.
+//! 3. Wherever the new functionality is implemented, call
+//!    [`Config::cli_unstable`] to get an instance of [`CliUnstable`]
+//!    and check if the option has been enabled on the [`CliUnstable`] instance.
+//!    Nightly gating is already handled, so no need to worry about that.
+//!
+//! ## Stabilization
+//!
+//! For the stabilization process, see
+//! &lt;https://doc.crates.io/contrib/process/unstable.html#stabilization&gt;.
+//!
+//! The steps for stabilizing are roughly:
+//!
+//! 1. Update the feature to be stable, based on the kind of feature:
+//!   1. `cargo-features`: Change the feature to `stable` in the [`features!`]
+//!      macro invocation below, and include the version and a URL for the
+//!      documentation.
+//!   2. `-Z unstable-options`: Find the call to [`fail_if_stable_opt`] and
+//!      remove it. Be sure to update the man pages if necessary.
+//!   3. `-Z` flag: Change the parsing code in [`CliUnstable::add`] to call
+//!      `stabilized_warn` or `stabilized_err` and remove the field from
+//!      [`CliUnstable`]. Remove the `(unstable)` note in the clap help text if
+//!      necessary.
+//! 2. Remove `masquerade_as_nightly_cargo` from any tests, and remove
+//!    `cargo-features` from `Cargo.toml` test files if any. You can
+//!     quickly find what needs to be removed by searching for the name
+//!     of the feature, e.g. `print_im_a_teapot`
+//! 3. Update the docs in unstable.md to move the section to the bottom
+//!    and summarize it similar to the other entries. Update the rest of the
+//!    documentation to add the new feature.
+//!
+//! [`Config::cli_unstable`]: crate::util::config::Config::cli_unstable
+//! [`fail_if_stable_opt`]: CliUnstable::fail_if_stable_opt
+//! [`features!`]: macro.features.html
+
+</span><span class="kw">use </span>std::collections::BTreeSet;
+<span class="kw">use </span>std::env;
+<span class="kw">use </span>std::fmt::{<span class="self">self</span>, Write};
+<span class="kw">use </span>std::str::FromStr;
+
+<span class="kw">use </span>anyhow::{bail, Error};
+<span class="kw">use </span>cargo_util::ProcessBuilder;
+<span class="kw">use </span>serde::{Deserialize, Serialize};
+
+<span class="kw">use </span><span class="kw">crate</span>::core::resolver::ResolveBehavior;
+<span class="kw">use </span><span class="kw">crate</span>::util::errors::CargoResult;
+<span class="kw">use </span><span class="kw">crate</span>::util::{indented_lines, iter_join};
+<span class="kw">use </span><span class="kw">crate</span>::Config;
+
+<span class="kw">pub const </span>HIDDEN: <span class="kw-2">&amp;</span>str = <span class="string">&quot;&quot;</span>;
+<span class="kw">pub const </span>SEE_CHANNELS: <span class="kw-2">&amp;</span>str =
+    <span class="string">&quot;See https://doc.rust-lang.org/book/appendix-07-nightly-rust.html for more information \
+     about Rust release channels.&quot;</span>;
+
+<span class="doccomment">/// The edition of the compiler ([RFC 2052])
+///
+/// The following sections will guide you how to add and stabilize an edition.
+///
+/// ## Adding a new edition
+///
+/// - Add the next edition to the enum.
+/// - Update every match expression that now fails to compile.
+/// - Update the [`FromStr`] impl.
+/// - Update [`CLI_VALUES`] to include the new edition.
+/// - Set [`LATEST_UNSTABLE`] to Some with the new edition.
+/// - Add an unstable feature to the [`features!`] macro invocation below for the new edition.
+/// - Gate on that new feature in [`TomlManifest::to_real_manifest`].
+/// - Update the shell completion files.
+/// - Update any failing tests (hopefully there are very few).
+/// - Update unstable.md to add a new section for this new edition (see [this example]).
+///
+/// ## Stabilization instructions
+///
+/// - Set [`LATEST_UNSTABLE`] to None.
+/// - Set [`LATEST_STABLE`] to the new version.
+/// - Update [`is_stable`] to `true`.
+/// - Set the editionNNNN feature to stable in the [`features!`] macro invocation below.
+/// - Update any tests that are affected.
+/// - Update the man page for the `--edition` flag.
+/// - Update unstable.md to move the edition section to the bottom.
+/// - Update the documentation:
+///   - Update any features impacted by the edition.
+///   - Update manifest.md#the-edition-field.
+///   - Update the `--edition` flag (options-new.md).
+///   - Rebuild man pages.
+///
+/// [RFC 2052]: https://rust-lang.github.io/rfcs/2052-epochs.html
+/// [`FromStr`]: Edition::from_str
+/// [`CLI_VALUES`]: Edition::CLI_VALUES
+/// [`LATEST_UNSTABLE`]: Edition::LATEST_UNSTABLE
+/// [`LATEST_STABLE`]: Edition::LATEST_STABLE
+/// [this example]: https://github.com/rust-lang/cargo/blob/3ebb5f15a940810f250b68821149387af583a79e/src/doc/src/reference/unstable.md?plain=1#L1238-L1264
+/// [`is_stable`]: Edition::is_stable
+/// [`TomlManifest::to_real_manifest`]: crate::util::toml::TomlManifest::to_real_manifest
+/// [`features!`]: macro.features.html
+</span><span class="attribute">#[derive(Clone, Copy, Debug, Hash, PartialOrd, Ord, Eq, PartialEq, Serialize, Deserialize)]
+</span><span class="kw">pub enum </span>Edition {
+    <span class="doccomment">/// The 2015 edition
+    </span>Edition2015,
+    <span class="doccomment">/// The 2018 edition
+    </span>Edition2018,
+    <span class="doccomment">/// The 2021 edition
+    </span>Edition2021,
+}
+
+<span class="kw">impl </span>Edition {
+    <span class="doccomment">/// The latest edition that is unstable.
+    ///
+    /// This is `None` if there is no next unstable edition.
+    </span><span class="kw">pub const </span>LATEST_UNSTABLE: <span class="prelude-ty">Option</span>&lt;Edition&gt; = <span class="prelude-val">None</span>;
+    <span class="doccomment">/// The latest stable edition.
+    </span><span class="kw">pub const </span>LATEST_STABLE: Edition = Edition::Edition2021;
+    <span class="doccomment">/// Possible values allowed for the `--edition` CLI flag.
+    ///
+    /// This requires a static value due to the way clap works, otherwise I
+    /// would have built this dynamically.
+    </span><span class="kw">pub const </span>CLI_VALUES: [<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str; <span class="number">3</span>] = [<span class="string">&quot;2015&quot;</span>, <span class="string">&quot;2018&quot;</span>, <span class="string">&quot;2021&quot;</span>];
+
+    <span class="doccomment">/// Returns the first version that a particular edition was released on
+    /// stable.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>first_version(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;semver::Version&gt; {
+        <span class="kw">use </span>Edition::<span class="kw-2">*</span>;
+        <span class="kw">match </span><span class="self">self </span>{
+            Edition2015 =&gt; <span class="prelude-val">None</span>,
+            Edition2018 =&gt; <span class="prelude-val">Some</span>(semver::Version::new(<span class="number">1</span>, <span class="number">31</span>, <span class="number">0</span>)),
+            Edition2021 =&gt; <span class="prelude-val">Some</span>(semver::Version::new(<span class="number">1</span>, <span class="number">56</span>, <span class="number">0</span>)),
+        }
+    }
+
+    <span class="doccomment">/// Returns `true` if this edition is stable in this release.
+    </span><span class="kw">pub fn </span>is_stable(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="kw">use </span>Edition::<span class="kw-2">*</span>;
+        <span class="kw">match </span><span class="self">self </span>{
+            Edition2015 =&gt; <span class="bool-val">true</span>,
+            Edition2018 =&gt; <span class="bool-val">true</span>,
+            Edition2021 =&gt; <span class="bool-val">true</span>,
+        }
+    }
+
+    <span class="doccomment">/// Returns the previous edition from this edition.
+    ///
+    /// Returns `None` for 2015.
+    </span><span class="kw">pub fn </span>previous(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="prelude-ty">Option</span>&lt;Edition&gt; {
+        <span class="kw">use </span>Edition::<span class="kw-2">*</span>;
+        <span class="kw">match </span><span class="self">self </span>{
+            Edition2015 =&gt; <span class="prelude-val">None</span>,
+            Edition2018 =&gt; <span class="prelude-val">Some</span>(Edition2015),
+            Edition2021 =&gt; <span class="prelude-val">Some</span>(Edition2018),
+        }
+    }
+
+    <span class="doccomment">/// Returns the next edition from this edition, returning the last edition
+    /// if this is already the last one.
+    </span><span class="kw">pub fn </span>saturating_next(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; Edition {
+        <span class="kw">use </span>Edition::<span class="kw-2">*</span>;
+        <span class="kw">match </span><span class="self">self </span>{
+            Edition2015 =&gt; Edition2018,
+            Edition2018 =&gt; Edition2021,
+            Edition2021 =&gt; Edition2021,
+        }
+    }
+
+    <span class="doccomment">/// Updates the given [`ProcessBuilder`] to include the appropriate flags
+    /// for setting the edition.
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>cmd_edition_arg(<span class="kw-2">&amp;</span><span class="self">self</span>, cmd: <span class="kw-2">&amp;mut </span>ProcessBuilder) {
+        <span class="kw">if </span><span class="kw-2">*</span><span class="self">self </span>!= Edition::Edition2015 {
+            cmd.arg(<span class="macro">format!</span>(<span class="string">&quot;--edition={}&quot;</span>, <span class="self">self</span>));
+        }
+        <span class="kw">if </span>!<span class="self">self</span>.is_stable() {
+            cmd.arg(<span class="string">&quot;-Z&quot;</span>).arg(<span class="string">&quot;unstable-options&quot;</span>);
+        }
+    }
+
+    <span class="doccomment">/// Whether or not this edition supports the `rust_*_compatibility` lint.
+    ///
+    /// Ideally this would not be necessary, but editions may not have any
+    /// lints, and thus `rustc` doesn&#39;t recognize it. Perhaps `rustc` could
+    /// create an empty group instead?
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>supports_compat_lint(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="kw">use </span>Edition::<span class="kw-2">*</span>;
+        <span class="kw">match </span><span class="self">self </span>{
+            Edition2015 =&gt; <span class="bool-val">false</span>,
+            Edition2018 =&gt; <span class="bool-val">true</span>,
+            Edition2021 =&gt; <span class="bool-val">true</span>,
+        }
+    }
+
+    <span class="doccomment">/// Whether or not this edition supports the `rust_*_idioms` lint.
+    ///
+    /// Ideally this would not be necessary...
+    </span><span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>supports_idiom_lint(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; bool {
+        <span class="kw">use </span>Edition::<span class="kw-2">*</span>;
+        <span class="kw">match </span><span class="self">self </span>{
+            Edition2015 =&gt; <span class="bool-val">false</span>,
+            Edition2018 =&gt; <span class="bool-val">true</span>,
+            Edition2021 =&gt; <span class="bool-val">false</span>,
+        }
+    }
+
+    <span class="kw">pub</span>(<span class="kw">crate</span>) <span class="kw">fn </span>default_resolve_behavior(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; ResolveBehavior {
+        <span class="kw">if </span><span class="kw-2">*</span><span class="self">self </span>&gt;= Edition::Edition2021 {
+            ResolveBehavior::V2
+        } <span class="kw">else </span>{
+            ResolveBehavior::V1
+        }
+    }
+}
+
+<span class="kw">impl </span>fmt::Display <span class="kw">for </span>Edition {
+    <span class="kw">fn </span>fmt(<span class="kw-2">&amp;</span><span class="self">self</span>, f: <span class="kw-2">&amp;mut </span>fmt::Formatter&lt;<span class="lifetime">&#39;_</span>&gt;) -&gt; fmt::Result {
+        <span class="kw">match </span><span class="kw-2">*</span><span class="self">self </span>{
+            Edition::Edition2015 =&gt; f.write_str(<span class="string">&quot;2015&quot;</span>),
+            Edition::Edition2018 =&gt; f.write_str(<span class="string">&quot;2018&quot;</span>),
+            Edition::Edition2021 =&gt; f.write_str(<span class="string">&quot;2021&quot;</span>),
+        }
+    }
+}
+<span class="kw">impl </span>FromStr <span class="kw">for </span>Edition {
+    <span class="kw">type </span><span class="prelude-val">Err </span>= Error;
+    <span class="kw">fn </span>from_str(s: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="self">Self</span>, Error&gt; {
+        <span class="kw">match </span>s {
+            <span class="string">&quot;2015&quot; </span>=&gt; <span class="prelude-val">Ok</span>(Edition::Edition2015),
+            <span class="string">&quot;2018&quot; </span>=&gt; <span class="prelude-val">Ok</span>(Edition::Edition2018),
+            <span class="string">&quot;2021&quot; </span>=&gt; <span class="prelude-val">Ok</span>(Edition::Edition2021),
+            s <span class="kw">if </span>s.parse().map_or(<span class="bool-val">false</span>, |y: u16| y &gt; <span class="number">2021 </span>&amp;&amp; y &lt; <span class="number">2050</span>) =&gt; <span class="macro">bail!</span>(
+                <span class="string">&quot;this version of Cargo is older than the `{}` edition, \
+                 and only supports `2015`, `2018`, and `2021` editions.&quot;</span>,
+                s
+            ),
+            s =&gt; <span class="macro">bail!</span>(
+                <span class="string">&quot;supported edition values are `2015`, `2018`, or `2021`, \
+                 but `{}` is unknown&quot;</span>,
+                s
+            ),
+        }
+    }
+}
+
+<span class="attribute">#[derive(PartialEq)]
+</span><span class="kw">enum </span>Status {
+    Stable,
+    Unstable,
+    Removed,
+}
+
+<span class="macro">macro_rules! </span>features {
+    (
+        $((<span class="macro-nonterminal">$stab</span>:ident, <span class="macro-nonterminal">$feature</span>:ident, <span class="macro-nonterminal">$version</span>:expr, <span class="macro-nonterminal">$docs</span>:expr),)*
+    ) =&gt; (
+        <span class="attribute">#[derive(Default, Clone, Debug)]
+        </span><span class="kw">pub struct </span>Features {
+            $(<span class="macro-nonterminal">$feature</span>: bool,)*
+            activated: Vec&lt;String&gt;,
+            nightly_features_allowed: bool,
+            is_local: bool,
+        }
+
+        <span class="kw">impl </span>Feature {
+            $(
+                <span class="kw">pub fn </span><span class="macro-nonterminal">$feature</span>() -&gt; <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>Feature {
+                    <span class="kw">fn </span>get(features: <span class="kw-2">&amp;</span>Features) -&gt; bool {
+                        <span class="macro">stab!</span>(<span class="macro-nonterminal">$stab</span>) == Status::Stable || features.<span class="macro-nonterminal">$feature
+                    </span>}
+                    <span class="kw">static </span>FEAT: Feature = Feature {
+                        name: <span class="macro">stringify!</span>(<span class="macro-nonterminal">$feature</span>),
+                        stability: <span class="macro">stab!</span>(<span class="macro-nonterminal">$stab</span>),
+                        version: <span class="macro-nonterminal">$version</span>,
+                        docs: <span class="macro-nonterminal">$docs</span>,
+                        get,
+                    };
+                    <span class="kw-2">&amp;</span>FEAT
+                }
+            )*
+
+            <span class="kw">fn </span>is_enabled(<span class="kw-2">&amp;</span><span class="self">self</span>, features: <span class="kw-2">&amp;</span>Features) -&gt; bool {
+                (<span class="self">self</span>.get)(features)
+            }
+        }
+
+        <span class="kw">impl </span>Features {
+            <span class="kw">fn </span>status(<span class="kw-2">&amp;mut </span><span class="self">self</span>, feature: <span class="kw-2">&amp;</span>str) -&gt; <span class="prelude-ty">Option</span>&lt;(<span class="kw-2">&amp;mut </span>bool, <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>Feature)&gt; {
+                <span class="kw">if </span>feature.contains(<span class="string">&quot;_&quot;</span>) {
+                    <span class="kw">return </span><span class="prelude-val">None
+                </span>}
+                <span class="kw">let </span>feature = feature.replace(<span class="string">&quot;-&quot;</span>, <span class="string">&quot;_&quot;</span>);
+                $(
+                    <span class="kw">if </span>feature == <span class="macro">stringify!</span>(<span class="macro-nonterminal">$feature</span>) {
+                        <span class="kw">return </span><span class="prelude-val">Some</span>((<span class="kw-2">&amp;mut </span><span class="self">self</span>.<span class="macro-nonterminal">$feature</span>, Feature::<span class="macro-nonterminal">$feature</span>()))
+                    }
+                )*
+                <span class="prelude-val">None
+            </span>}
+        }
+    )
+}
+
+<span class="macro">macro_rules! </span>stab {
+    (stable) =&gt; {
+        Status::Stable
+    };
+    (unstable) =&gt; {
+        Status::Unstable
+    };
+    (removed) =&gt; {
+        Status::Removed
+    };
+}
+
+<span class="comment">// A listing of all features in Cargo.
+//
+// &quot;look here&quot;
+//
+// This is the macro that lists all stable and unstable features in Cargo.
+// You&#39;ll want to add to this macro whenever you add a feature to Cargo, also
+// following the directions above.
+//
+// Note that all feature names here are valid Rust identifiers, but the `_`
+// character is translated to `-` when specified in the `cargo-features`
+// manifest entry in `Cargo.toml`.
+</span><span class="macro">features! </span>{
+    <span class="comment">// A dummy feature that doesn&#39;t actually gate anything, but it&#39;s used in
+    // testing to ensure that we can enable stable features.
+    </span>(stable, test_dummy_stable, <span class="string">&quot;1.0&quot;</span>, <span class="string">&quot;&quot;</span>),
+
+    <span class="comment">// A dummy feature that gates the usage of the `im-a-teapot` manifest
+    // entry. This is basically just intended for tests.
+    </span>(unstable, test_dummy_unstable, <span class="string">&quot;&quot;</span>, <span class="string">&quot;reference/unstable.html&quot;</span>),
+
+    <span class="comment">// Downloading packages from alternative registry indexes.
+    </span>(stable, alternative_registries, <span class="string">&quot;1.34&quot;</span>, <span class="string">&quot;reference/registries.html&quot;</span>),
+
+    <span class="comment">// Using editions
+    </span>(stable, edition, <span class="string">&quot;1.31&quot;</span>, <span class="string">&quot;reference/manifest.html#the-edition-field&quot;</span>),
+
+    <span class="comment">// Renaming a package in the manifest via the `package` key
+    </span>(stable, rename_dependency, <span class="string">&quot;1.31&quot;</span>, <span class="string">&quot;reference/specifying-dependencies.html#renaming-dependencies-in-cargotoml&quot;</span>),
+
+    <span class="comment">// Whether a lock file is published with this crate
+    </span>(removed, publish_lockfile, <span class="string">&quot;1.37&quot;</span>, <span class="string">&quot;reference/unstable.html#publish-lockfile&quot;</span>),
+
+    <span class="comment">// Overriding profiles for dependencies.
+    </span>(stable, profile_overrides, <span class="string">&quot;1.41&quot;</span>, <span class="string">&quot;reference/profiles.html#overrides&quot;</span>),
+
+    <span class="comment">// &quot;default-run&quot; manifest option,
+    </span>(stable, default_run, <span class="string">&quot;1.37&quot;</span>, <span class="string">&quot;reference/manifest.html#the-default-run-field&quot;</span>),
+
+    <span class="comment">// Declarative build scripts.
+    </span>(unstable, metabuild, <span class="string">&quot;&quot;</span>, <span class="string">&quot;reference/unstable.html#metabuild&quot;</span>),
+
+    <span class="comment">// Specifying the &#39;public&#39; attribute on dependencies
+    </span>(unstable, public_dependency, <span class="string">&quot;&quot;</span>, <span class="string">&quot;reference/unstable.html#public-dependency&quot;</span>),
+
+    <span class="comment">// Allow to specify profiles other than &#39;dev&#39;, &#39;release&#39;, &#39;test&#39;, etc.
+    </span>(stable, named_profiles, <span class="string">&quot;1.57&quot;</span>, <span class="string">&quot;reference/profiles.html#custom-profiles&quot;</span>),
+
+    <span class="comment">// Opt-in new-resolver behavior.
+    </span>(stable, resolver, <span class="string">&quot;1.51&quot;</span>, <span class="string">&quot;reference/resolver.html#resolver-versions&quot;</span>),
+
+    <span class="comment">// Allow to specify whether binaries should be stripped.
+    </span>(stable, strip, <span class="string">&quot;1.58&quot;</span>, <span class="string">&quot;reference/profiles.html#strip-option&quot;</span>),
+
+    <span class="comment">// Specifying a minimal &#39;rust-version&#39; attribute for crates
+    </span>(stable, rust_version, <span class="string">&quot;1.56&quot;</span>, <span class="string">&quot;reference/manifest.html#the-rust-version-field&quot;</span>),
+
+    <span class="comment">// Support for 2021 edition.
+    </span>(stable, edition2021, <span class="string">&quot;1.56&quot;</span>, <span class="string">&quot;reference/manifest.html#the-edition-field&quot;</span>),
+
+    <span class="comment">// Allow to specify per-package targets (compile kinds)
+    </span>(unstable, per_package_target, <span class="string">&quot;&quot;</span>, <span class="string">&quot;reference/unstable.html#per-package-target&quot;</span>),
+
+    <span class="comment">// Allow to specify which codegen backend should be used.
+    </span>(unstable, codegen_backend, <span class="string">&quot;&quot;</span>, <span class="string">&quot;reference/unstable.html#codegen-backend&quot;</span>),
+
+    <span class="comment">// Allow specifying different binary name apart from the crate name
+    </span>(unstable, different_binary_name, <span class="string">&quot;&quot;</span>, <span class="string">&quot;reference/unstable.html#different-binary-name&quot;</span>),
+
+    <span class="comment">// Allow specifying rustflags directly in a profile
+    </span>(unstable, profile_rustflags, <span class="string">&quot;&quot;</span>, <span class="string">&quot;reference/unstable.html#profile-rustflags-option&quot;</span>),
+
+    <span class="comment">// Allow specifying rustflags directly in a profile
+    </span>(stable, workspace_inheritance, <span class="string">&quot;1.64&quot;</span>, <span class="string">&quot;reference/unstable.html#workspace-inheritance&quot;</span>),
+}
+
+<span class="kw">pub struct </span>Feature {
+    name: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str,
+    stability: Status,
+    version: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str,
+    docs: <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str,
+    get: <span class="kw">fn</span>(<span class="kw-2">&amp;</span>Features) -&gt; bool,
+}
+
+<span class="kw">impl </span>Features {
+    <span class="kw">pub fn </span>new(
+        features: <span class="kw-2">&amp;</span>[String],
+        config: <span class="kw-2">&amp;</span>Config,
+        warnings: <span class="kw-2">&amp;mut </span>Vec&lt;String&gt;,
+        is_local: bool,
+    ) -&gt; CargoResult&lt;Features&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>ret = Features::default();
+        ret.nightly_features_allowed = config.nightly_features_allowed;
+        ret.is_local = is_local;
+        <span class="kw">for </span>feature <span class="kw">in </span>features {
+            ret.add(feature, config, warnings)<span class="question-mark">?</span>;
+            ret.activated.push(feature.to_string());
+        }
+        <span class="prelude-val">Ok</span>(ret)
+    }
+
+    <span class="kw">fn </span>add(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        feature_name: <span class="kw-2">&amp;</span>str,
+        config: <span class="kw-2">&amp;</span>Config,
+        warnings: <span class="kw-2">&amp;mut </span>Vec&lt;String&gt;,
+    ) -&gt; CargoResult&lt;()&gt; {
+        <span class="kw">let </span>nightly_features_allowed = <span class="self">self</span>.nightly_features_allowed;
+        <span class="kw">let </span>is_local = <span class="self">self</span>.is_local;
+        <span class="kw">let </span>(slot, feature) = <span class="kw">match </span><span class="self">self</span>.status(feature_name) {
+            <span class="prelude-val">Some</span>(p) =&gt; p,
+            <span class="prelude-val">None </span>=&gt; <span class="macro">bail!</span>(<span class="string">&quot;unknown cargo feature `{}`&quot;</span>, feature_name),
+        };
+
+        <span class="kw">if </span><span class="kw-2">*</span>slot {
+            <span class="macro">bail!</span>(
+                <span class="string">&quot;the cargo feature `{}` has already been activated&quot;</span>,
+                feature_name
+            );
+        }
+
+        <span class="kw">let </span>see_docs = || {
+            <span class="kw">let </span>url_channel = <span class="kw">match </span>channel().as_str() {
+                <span class="string">&quot;dev&quot; </span>| <span class="string">&quot;nightly&quot; </span>=&gt; <span class="string">&quot;nightly/&quot;</span>,
+                <span class="string">&quot;beta&quot; </span>=&gt; <span class="string">&quot;beta/&quot;</span>,
+                <span class="kw">_ </span>=&gt; <span class="string">&quot;&quot;</span>,
+            };
+            <span class="macro">format!</span>(
+                <span class="string">&quot;See https://doc.rust-lang.org/{}cargo/{} for more information \
+                about using this feature.&quot;</span>,
+                url_channel, feature.docs
+            )
+        };
+
+        <span class="kw">match </span>feature.stability {
+            Status::Stable =&gt; {
+                <span class="comment">// The user can&#39;t do anything about non-local packages.
+                // Warnings are usually suppressed, but just being cautious here.
+                </span><span class="kw">if </span>is_local {
+                    <span class="kw">let </span>warning = <span class="macro">format!</span>(
+                        <span class="string">&quot;the cargo feature `{}` has been stabilized in the {} \
+                         release and is no longer necessary to be listed in the \
+                         manifest\n  {}&quot;</span>,
+                        feature_name,
+                        feature.version,
+                        see_docs()
+                    );
+                    warnings.push(warning);
+                }
+            }
+            Status::Unstable <span class="kw">if </span>!nightly_features_allowed =&gt; <span class="macro">bail!</span>(
+                <span class="string">&quot;the cargo feature `{}` requires a nightly version of \
+                 Cargo, but this is the `{}` channel\n\
+                 {}\n{}&quot;</span>,
+                feature_name,
+                channel(),
+                SEE_CHANNELS,
+                see_docs()
+            ),
+            Status::Unstable =&gt; {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(allow) = <span class="kw-2">&amp;</span>config.cli_unstable().allow_features {
+                    <span class="kw">if </span>!allow.contains(feature_name) {
+                        <span class="macro">bail!</span>(
+                            <span class="string">&quot;the feature `{}` is not in the list of allowed features: [{}]&quot;</span>,
+                            feature_name,
+                            iter_join(allow, <span class="string">&quot;, &quot;</span>),
+                        );
+                    }
+                }
+            }
+            Status::Removed =&gt; {
+                <span class="kw">let </span><span class="kw-2">mut </span>msg = <span class="macro">format!</span>(
+                    <span class="string">&quot;the cargo feature `{}` has been removed in the {} release\n\n&quot;</span>,
+                    feature_name, feature.version
+                );
+                <span class="kw">if </span><span class="self">self</span>.is_local {
+                    drop(<span class="macro">writeln!</span>(
+                        msg,
+                        <span class="string">&quot;Remove the feature from Cargo.toml to remove this error.&quot;
+                    </span>));
+                } <span class="kw">else </span>{
+                    drop(<span class="macro">writeln!</span>(
+                        msg,
+                        <span class="string">&quot;This package cannot be used with this version of Cargo, \
+                         as the unstable feature `{}` is no longer supported.&quot;</span>,
+                        feature_name
+                    ));
+                }
+                drop(<span class="macro">writeln!</span>(msg, <span class="string">&quot;{}&quot;</span>, see_docs()));
+                <span class="macro">bail!</span>(msg);
+            }
+        }
+
+        <span class="kw-2">*</span>slot = <span class="bool-val">true</span>;
+
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="kw">pub fn </span>activated(<span class="kw-2">&amp;</span><span class="self">self</span>) -&gt; <span class="kw-2">&amp;</span>[String] {
+        <span class="kw-2">&amp;</span><span class="self">self</span>.activated
+    }
+
+    <span class="kw">pub fn </span>require(<span class="kw-2">&amp;</span><span class="self">self</span>, feature: <span class="kw-2">&amp;</span>Feature) -&gt; CargoResult&lt;()&gt; {
+        <span class="kw">if </span>feature.is_enabled(<span class="self">self</span>) {
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+        }
+        <span class="kw">let </span>feature_name = feature.name.replace(<span class="string">&quot;_&quot;</span>, <span class="string">&quot;-&quot;</span>);
+        <span class="kw">let </span><span class="kw-2">mut </span>msg = <span class="macro">format!</span>(
+            <span class="string">&quot;feature `{}` is required\n\
+             \n\
+             The package requires the Cargo feature called `{}`, but \
+             that feature is not stabilized in this version of Cargo ({}).\n\
+            &quot;</span>,
+            feature_name,
+            feature_name,
+            <span class="kw">crate</span>::version(),
+        );
+
+        <span class="kw">if </span><span class="self">self</span>.nightly_features_allowed {
+            <span class="kw">if </span><span class="self">self</span>.is_local {
+                drop(<span class="macro">writeln!</span>(
+                    msg,
+                    <span class="string">&quot;Consider adding `cargo-features = [\&quot;{}\&quot;]` \
+                     to the top of Cargo.toml (above the [package] table) \
+                     to tell Cargo you are opting in to use this unstable feature.&quot;</span>,
+                    feature_name
+                ));
+            } <span class="kw">else </span>{
+                drop(<span class="macro">writeln!</span>(
+                    msg,
+                    <span class="string">&quot;Consider trying a more recent nightly release.&quot;
+                </span>));
+            }
+        } <span class="kw">else </span>{
+            drop(<span class="macro">writeln!</span>(
+                msg,
+                <span class="string">&quot;Consider trying a newer version of Cargo \
+                 (this may require the nightly release).&quot;
+            </span>));
+        }
+        drop(<span class="macro">writeln!</span>(
+            msg,
+            <span class="string">&quot;See https://doc.rust-lang.org/nightly/cargo/{} for more information \
+             about the status of this feature.&quot;</span>,
+            feature.docs
+        ));
+
+        <span class="macro">bail!</span>(<span class="string">&quot;{}&quot;</span>, msg);
+    }
+
+    <span class="kw">pub fn </span>is_enabled(<span class="kw-2">&amp;</span><span class="self">self</span>, feature: <span class="kw-2">&amp;</span>Feature) -&gt; bool {
+        feature.is_enabled(<span class="self">self</span>)
+    }
+}
+
+<span class="macro">macro_rules! </span>unstable_cli_options {
+    (
+        $(
+            $(<span class="attribute">#[<span class="macro-nonterminal">$meta</span>:meta]</span>)<span class="question-mark">?
+            </span><span class="macro-nonterminal">$element</span>: ident: <span class="macro-nonterminal">$ty</span>: ty = (<span class="macro-nonterminal">$help</span>: expr ),
+        )*
+    ) =&gt; {
+        <span class="doccomment">/// A parsed representation of all unstable flags that Cargo accepts.
+        ///
+        /// Cargo, like `rustc`, accepts a suite of `-Z` flags which are intended for
+        /// gating unstable functionality to Cargo. These flags are only available on
+        /// the nightly channel of Cargo.
+        </span><span class="attribute">#[derive(Default, Debug, Deserialize)]
+        #[serde(default, rename_all = <span class="string">&quot;kebab-case&quot;</span>)]
+        </span><span class="kw">pub struct </span>CliUnstable {
+            $(
+                $(<span class="attribute">#[<span class="macro-nonterminal">$meta</span>]</span>)<span class="question-mark">?
+                </span><span class="kw">pub </span><span class="macro-nonterminal">$element</span>: <span class="macro-nonterminal">$ty
+            </span>),*
+        }
+        <span class="kw">impl </span>CliUnstable {
+            <span class="kw">pub fn </span>help() -&gt; Vec&lt;(<span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str, <span class="kw-2">&amp;</span><span class="lifetime">&#39;static </span>str)&gt; {
+                <span class="kw">let </span>fields = <span class="macro">vec!</span>[$((<span class="macro">stringify!</span>(<span class="macro-nonterminal">$element</span>), <span class="macro-nonterminal">$help</span>)),<span class="kw-2">*</span>];
+                fields
+            }
+        }
+    }
+}
+
+<span class="macro">unstable_cli_options!</span>(
+    <span class="comment">// Permanently unstable features:
+    </span>allow_features: <span class="prelude-ty">Option</span>&lt;BTreeSet&lt;String&gt;&gt; = (<span class="string">&quot;Allow *only* the listed unstable features&quot;</span>),
+    print_im_a_teapot: bool = (HIDDEN),
+
+    <span class="comment">// All other unstable features.
+    // Please keep this list lexiographically ordered.
+    </span>advanced_env: bool = (HIDDEN),
+    avoid_dev_deps: bool = (<span class="string">&quot;Avoid installing dev-dependencies if possible&quot;</span>),
+    binary_dep_depinfo: bool = (<span class="string">&quot;Track changes to dependency artifacts&quot;</span>),
+    bindeps: bool = (<span class="string">&quot;Allow Cargo packages to depend on bin, cdylib, and staticlib crates, and use the artifacts built by those crates&quot;</span>),
+    <span class="attribute">#[serde(deserialize_with = <span class="string">&quot;deserialize_build_std&quot;</span>)]
+    </span>build_std: <span class="prelude-ty">Option</span>&lt;Vec&lt;String&gt;&gt;  = (<span class="string">&quot;Enable Cargo to compile the standard library itself as part of a crate graph compilation&quot;</span>),
+    build_std_features: <span class="prelude-ty">Option</span>&lt;Vec&lt;String&gt;&gt;  = (<span class="string">&quot;Configure features enabled for the standard library itself when building the standard library&quot;</span>),
+    config_include: bool = (<span class="string">&quot;Enable the `include` key in config files&quot;</span>),
+    credential_process: bool = (<span class="string">&quot;Add a config setting to fetch registry authentication tokens by calling an external process&quot;</span>),
+    <span class="attribute">#[serde(deserialize_with = <span class="string">&quot;deserialize_check_cfg&quot;</span>)]
+    </span>check_cfg: <span class="prelude-ty">Option</span>&lt;(<span class="comment">/*features:*/ </span>bool, <span class="comment">/*well_known_names:*/ </span>bool, <span class="comment">/*well_known_values:*/ </span>bool, <span class="comment">/*output:*/ </span>bool)&gt; = (<span class="string">&quot;Specify scope of compile-time checking of `cfg` names/values&quot;</span>),
+    doctest_in_workspace: bool = (<span class="string">&quot;Compile doctests with paths relative to the workspace root&quot;</span>),
+    doctest_xcompile: bool = (<span class="string">&quot;Compile and run doctests for non-host target using runner config&quot;</span>),
+    dual_proc_macros: bool = (<span class="string">&quot;Build proc-macros for both the host and the target&quot;</span>),
+    features: <span class="prelude-ty">Option</span>&lt;Vec&lt;String&gt;&gt;  = (HIDDEN),
+    jobserver_per_rustc: bool = (HIDDEN),
+    minimal_versions: bool = (<span class="string">&quot;Resolve minimal dependency versions instead of maximum&quot;</span>),
+    mtime_on_use: bool = (<span class="string">&quot;Configure Cargo to update the mtime of used files&quot;</span>),
+    no_index_update: bool = (<span class="string">&quot;Do not update the registry index even if the cache is outdated&quot;</span>),
+    panic_abort_tests: bool = (<span class="string">&quot;Enable support to run tests with -Cpanic=abort&quot;</span>),
+    host_config: bool = (<span class="string">&quot;Enable the [host] section in the .cargo/config.toml file&quot;</span>),
+    sparse_registry: bool = (<span class="string">&quot;Support plain-HTTP-based crate registries&quot;</span>),
+    target_applies_to_host: bool = (<span class="string">&quot;Enable the `target-applies-to-host` key in the .cargo/config.toml file&quot;</span>),
+    rustdoc_map: bool = (<span class="string">&quot;Allow passing external documentation mappings to rustdoc&quot;</span>),
+    separate_nightlies: bool = (HIDDEN),
+    terminal_width: <span class="prelude-ty">Option</span>&lt;<span class="prelude-ty">Option</span>&lt;usize&gt;&gt;  = (<span class="string">&quot;Provide a terminal width to rustc for error truncation&quot;</span>),
+    publish_timeout: bool = (<span class="string">&quot;Enable the `publish.timeout` key in .cargo/config.toml file&quot;</span>),
+    unstable_options: bool = (<span class="string">&quot;Allow the usage of unstable options&quot;</span>),
+    <span class="comment">// TODO(wcrichto): move scrape example configuration into Cargo.toml before stabilization
+    // See: https://github.com/rust-lang/cargo/pull/9525#discussion_r728470927
+    </span>rustdoc_scrape_examples: <span class="prelude-ty">Option</span>&lt;String&gt; = (<span class="string">&quot;Allow rustdoc to scrape examples from reverse-dependencies for documentation&quot;</span>),
+    skip_rustdoc_fingerprint: bool = (HIDDEN),
+);
+
+<span class="kw">const </span>STABILIZED_COMPILE_PROGRESS: <span class="kw-2">&amp;</span>str = <span class="string">&quot;The progress bar is now always \
+    enabled when used on an interactive console.\n\
+    See https://doc.rust-lang.org/cargo/reference/config.html#termprogresswhen \
+    for information on controlling the progress bar.&quot;</span>;
+
+<span class="kw">const </span>STABILIZED_OFFLINE: <span class="kw-2">&amp;</span>str = <span class="string">&quot;Offline mode is now available via the \
+    --offline CLI option&quot;</span>;
+
+<span class="kw">const </span>STABILIZED_CACHE_MESSAGES: <span class="kw-2">&amp;</span>str = <span class="string">&quot;Message caching is now always enabled.&quot;</span>;
+
+<span class="kw">const </span>STABILIZED_INSTALL_UPGRADE: <span class="kw-2">&amp;</span>str = <span class="string">&quot;Packages are now always upgraded if \
+    they appear out of date.\n\
+    See https://doc.rust-lang.org/cargo/commands/cargo-install.html for more \
+    information on how upgrading works.&quot;</span>;
+
+<span class="kw">const </span>STABILIZED_CONFIG_PROFILE: <span class="kw-2">&amp;</span>str = <span class="string">&quot;See \
+    https://doc.rust-lang.org/cargo/reference/config.html#profile for more \
+    information about specifying profiles in config.&quot;</span>;
+
+<span class="kw">const </span>STABILIZED_CRATE_VERSIONS: <span class="kw-2">&amp;</span>str = <span class="string">&quot;The crate version is now \
+    automatically added to the documentation.&quot;</span>;
+
+<span class="kw">const </span>STABILIZED_PACKAGE_FEATURES: <span class="kw-2">&amp;</span>str = <span class="string">&quot;Enhanced feature flag behavior is now \
+    available in virtual workspaces, and `member/feature-name` syntax is also \
+    always available. Other extensions require setting `resolver = \&quot;2\&quot;` in \
+    Cargo.toml.\n\
+    See https://doc.rust-lang.org/nightly/cargo/reference/features.html#resolver-version-2-command-line-flags \
+    for more information.&quot;</span>;
+
+<span class="kw">const </span>STABILIZED_FEATURES: <span class="kw-2">&amp;</span>str = <span class="string">&quot;The new feature resolver is now available \
+    by specifying `resolver = \&quot;2\&quot;` in Cargo.toml.\n\
+    See https://doc.rust-lang.org/nightly/cargo/reference/features.html#feature-resolver-version-2 \
+    for more information.&quot;</span>;
+
+<span class="kw">const </span>STABILIZED_EXTRA_LINK_ARG: <span class="kw-2">&amp;</span>str = <span class="string">&quot;Additional linker arguments are now \
+    supported without passing this flag.&quot;</span>;
+
+<span class="kw">const </span>STABILIZED_CONFIGURABLE_ENV: <span class="kw-2">&amp;</span>str = <span class="string">&quot;The [env] section is now always enabled.&quot;</span>;
+
+<span class="kw">const </span>STABILIZED_PATCH_IN_CONFIG: <span class="kw-2">&amp;</span>str = <span class="string">&quot;The patch-in-config feature is now always enabled.&quot;</span>;
+
+<span class="kw">const </span>STABILIZED_NAMED_PROFILES: <span class="kw-2">&amp;</span>str = <span class="string">&quot;The named-profiles feature is now always enabled.\n\
+    See https://doc.rust-lang.org/nightly/cargo/reference/profiles.html#custom-profiles \
+    for more information&quot;</span>;
+
+<span class="kw">const </span>STABILIZED_FUTURE_INCOMPAT_REPORT: <span class="kw-2">&amp;</span>str =
+    <span class="string">&quot;The future-incompat-report feature is now always enabled.&quot;</span>;
+
+<span class="kw">const </span>STABILIZED_WEAK_DEP_FEATURES: <span class="kw-2">&amp;</span>str = <span class="string">&quot;Weak dependency features are now always available.&quot;</span>;
+
+<span class="kw">const </span>STABILISED_NAMESPACED_FEATURES: <span class="kw-2">&amp;</span>str = <span class="string">&quot;Namespaced features are now always available.&quot;</span>;
+
+<span class="kw">const </span>STABILIZED_TIMINGS: <span class="kw-2">&amp;</span>str = <span class="string">&quot;The -Ztimings option has been stabilized as --timings.&quot;</span>;
+
+<span class="kw">const </span>STABILISED_MULTITARGET: <span class="kw-2">&amp;</span>str = <span class="string">&quot;Multiple `--target` options are now always available.&quot;</span>;
+
+<span class="kw">fn </span>deserialize_build_std&lt;<span class="lifetime">&#39;de</span>, D&gt;(deserializer: D) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;Vec&lt;String&gt;&gt;, D::Error&gt;
+<span class="kw">where
+    </span>D: serde::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+{
+    <span class="kw">let </span>crates = <span class="kw">match </span>&lt;<span class="prelude-ty">Option</span>&lt;Vec&lt;String&gt;&gt;&gt;::deserialize(deserializer)<span class="question-mark">? </span>{
+        <span class="prelude-val">Some</span>(list) =&gt; list,
+        <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
+    };
+    <span class="kw">let </span>v = crates.join(<span class="string">&quot;,&quot;</span>);
+    <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>(
+        <span class="kw">crate</span>::core::compiler::standard_lib::parse_unstable_flag(<span class="prelude-val">Some</span>(<span class="kw-2">&amp;</span>v)),
+    ))
+}
+
+<span class="kw">fn </span>deserialize_check_cfg&lt;<span class="lifetime">&#39;de</span>, D&gt;(
+    deserializer: D,
+) -&gt; <span class="prelude-ty">Result</span>&lt;<span class="prelude-ty">Option</span>&lt;(bool, bool, bool, bool)&gt;, D::Error&gt;
+<span class="kw">where
+    </span>D: serde::Deserializer&lt;<span class="lifetime">&#39;de</span>&gt;,
+{
+    <span class="kw">use </span>serde::de::Error;
+    <span class="kw">let </span>crates = <span class="kw">match </span>&lt;<span class="prelude-ty">Option</span>&lt;Vec&lt;String&gt;&gt;&gt;::deserialize(deserializer)<span class="question-mark">? </span>{
+        <span class="prelude-val">Some</span>(list) =&gt; list,
+        <span class="prelude-val">None </span>=&gt; <span class="kw">return </span><span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>),
+    };
+
+    parse_check_cfg(crates.into_iter()).map_err(D::Error::custom)
+}
+
+<span class="kw">fn </span>parse_check_cfg(
+    it: <span class="kw">impl </span>Iterator&lt;Item = <span class="kw">impl </span>AsRef&lt;str&gt;&gt;,
+) -&gt; CargoResult&lt;<span class="prelude-ty">Option</span>&lt;(bool, bool, bool, bool)&gt;&gt; {
+    <span class="kw">let </span><span class="kw-2">mut </span>features = <span class="bool-val">false</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>well_known_names = <span class="bool-val">false</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>well_known_values = <span class="bool-val">false</span>;
+    <span class="kw">let </span><span class="kw-2">mut </span>output = <span class="bool-val">false</span>;
+
+    <span class="kw">for </span>e <span class="kw">in </span>it {
+        <span class="kw">match </span>e.as_ref() {
+            <span class="string">&quot;features&quot; </span>=&gt; features = <span class="bool-val">true</span>,
+            <span class="string">&quot;names&quot; </span>=&gt; well_known_names = <span class="bool-val">true</span>,
+            <span class="string">&quot;values&quot; </span>=&gt; well_known_values = <span class="bool-val">true</span>,
+            <span class="string">&quot;output&quot; </span>=&gt; output = <span class="bool-val">true</span>,
+            <span class="kw">_ </span>=&gt; <span class="macro">bail!</span>(<span class="string">&quot;unstable check-cfg only takes `features`, `names`, `values` or `output` as valid inputs&quot;</span>),
+        }
+    }
+
+    <span class="prelude-val">Ok</span>(<span class="prelude-val">Some</span>((
+        features,
+        well_known_names,
+        well_known_values,
+        output,
+    )))
+}
+
+<span class="kw">impl </span>CliUnstable {
+    <span class="kw">pub fn </span>parse(
+        <span class="kw-2">&amp;mut </span><span class="self">self</span>,
+        flags: <span class="kw-2">&amp;</span>[String],
+        nightly_features_allowed: bool,
+    ) -&gt; CargoResult&lt;Vec&lt;String&gt;&gt; {
+        <span class="kw">if </span>!flags.is_empty() &amp;&amp; !nightly_features_allowed {
+            <span class="macro">bail!</span>(
+                <span class="string">&quot;the `-Z` flag is only accepted on the nightly channel of Cargo, \
+                 but this is the `{}` channel\n\
+                 {}&quot;</span>,
+                channel(),
+                SEE_CHANNELS
+            );
+        }
+        <span class="kw">let </span><span class="kw-2">mut </span>warnings = Vec::new();
+        <span class="comment">// We read flags twice, first to get allowed-features (if specified),
+        // and then to read the remaining unstable flags.
+        </span><span class="kw">for </span>flag <span class="kw">in </span>flags {
+            <span class="kw">if </span>flag.starts_with(<span class="string">&quot;allow-features=&quot;</span>) {
+                <span class="self">self</span>.add(flag, <span class="kw-2">&amp;mut </span>warnings)<span class="question-mark">?</span>;
+            }
+        }
+        <span class="kw">for </span>flag <span class="kw">in </span>flags {
+            <span class="self">self</span>.add(flag, <span class="kw-2">&amp;mut </span>warnings)<span class="question-mark">?</span>;
+        }
+        <span class="prelude-val">Ok</span>(warnings)
+    }
+
+    <span class="kw">fn </span>add(<span class="kw-2">&amp;mut </span><span class="self">self</span>, flag: <span class="kw-2">&amp;</span>str, warnings: <span class="kw-2">&amp;mut </span>Vec&lt;String&gt;) -&gt; CargoResult&lt;()&gt; {
+        <span class="kw">let </span><span class="kw-2">mut </span>parts = flag.splitn(<span class="number">2</span>, <span class="string">&#39;=&#39;</span>);
+        <span class="kw">let </span>k = parts.next().unwrap();
+        <span class="kw">let </span>v = parts.next();
+
+        <span class="kw">fn </span>parse_bool(key: <span class="kw-2">&amp;</span>str, value: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; CargoResult&lt;bool&gt; {
+            <span class="kw">match </span>value {
+                <span class="prelude-val">None </span>| <span class="prelude-val">Some</span>(<span class="string">&quot;yes&quot;</span>) =&gt; <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>),
+                <span class="prelude-val">Some</span>(<span class="string">&quot;no&quot;</span>) =&gt; <span class="prelude-val">Ok</span>(<span class="bool-val">false</span>),
+                <span class="prelude-val">Some</span>(s) =&gt; <span class="macro">bail!</span>(<span class="string">&quot;flag -Z{} expected `no` or `yes`, found: `{}`&quot;</span>, key, s),
+            }
+        }
+
+        <span class="kw">fn </span>parse_features(value: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; Vec&lt;String&gt; {
+            <span class="kw">match </span>value {
+                <span class="prelude-val">None </span>=&gt; Vec::new(),
+                <span class="prelude-val">Some</span>(<span class="string">&quot;&quot;</span>) =&gt; Vec::new(),
+                <span class="prelude-val">Some</span>(v) =&gt; v.split(<span class="string">&#39;,&#39;</span>).map(|s| s.to_string()).collect(),
+            }
+        }
+
+        <span class="comment">// Asserts that there is no argument to the flag.
+        </span><span class="kw">fn </span>parse_empty(key: <span class="kw-2">&amp;</span>str, value: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; CargoResult&lt;bool&gt; {
+            <span class="kw">if let </span><span class="prelude-val">Some</span>(v) = value {
+                <span class="macro">bail!</span>(<span class="string">&quot;flag -Z{} does not take a value, found: `{}`&quot;</span>, key, v);
+            }
+            <span class="prelude-val">Ok</span>(<span class="bool-val">true</span>)
+        }
+
+        <span class="kw">fn </span>parse_usize_opt(value: <span class="prelude-ty">Option</span>&lt;<span class="kw-2">&amp;</span>str&gt;) -&gt; CargoResult&lt;<span class="prelude-ty">Option</span>&lt;usize&gt;&gt; {
+            <span class="prelude-val">Ok</span>(<span class="kw">match </span>value {
+                <span class="prelude-val">Some</span>(value) =&gt; <span class="kw">match </span>value.parse::&lt;usize&gt;() {
+                    <span class="prelude-val">Ok</span>(value) =&gt; <span class="prelude-val">Some</span>(value),
+                    <span class="prelude-val">Err</span>(e) =&gt; <span class="macro">bail!</span>(<span class="string">&quot;expected a number, found: {}&quot;</span>, e),
+                },
+                <span class="prelude-val">None </span>=&gt; <span class="prelude-val">None</span>,
+            })
+        }
+
+        <span class="kw">let </span><span class="kw-2">mut </span>stabilized_warn = |key: <span class="kw-2">&amp;</span>str, version: <span class="kw-2">&amp;</span>str, message: <span class="kw-2">&amp;</span>str| {
+            warnings.push(<span class="macro">format!</span>(
+                <span class="string">&quot;flag `-Z {}` has been stabilized in the {} release, \
+                 and is no longer necessary\n{}&quot;</span>,
+                key,
+                version,
+                indented_lines(message)
+            ));
+        };
+
+        <span class="comment">// Use this if the behavior now requires another mechanism to enable.
+        </span><span class="kw">let </span>stabilized_err = |key: <span class="kw-2">&amp;</span>str, version: <span class="kw-2">&amp;</span>str, message: <span class="kw-2">&amp;</span>str| {
+            <span class="prelude-val">Err</span>(<span class="macro">anyhow::format_err!</span>(
+                <span class="string">&quot;flag `-Z {}` has been stabilized in the {} release\n{}&quot;</span>,
+                key,
+                version,
+                indented_lines(message)
+            ))
+        };
+
+        <span class="kw">if let </span><span class="prelude-val">Some</span>(allowed) = <span class="kw-2">&amp;</span><span class="self">self</span>.allow_features {
+            <span class="kw">if </span>k != <span class="string">&quot;allow-features&quot; </span>&amp;&amp; !allowed.contains(k) {
+                <span class="macro">bail!</span>(
+                    <span class="string">&quot;the feature `{}` is not in the list of allowed features: [{}]&quot;</span>,
+                    k,
+                    iter_join(allowed, <span class="string">&quot;, &quot;</span>)
+                );
+            }
+        }
+
+        <span class="kw">match </span>k {
+            <span class="string">&quot;print-im-a-teapot&quot; </span>=&gt; <span class="self">self</span>.print_im_a_teapot = parse_bool(k, v)<span class="question-mark">?</span>,
+            <span class="string">&quot;allow-features&quot; </span>=&gt; <span class="self">self</span>.allow_features = <span class="prelude-val">Some</span>(parse_features(v).into_iter().collect()),
+            <span class="string">&quot;unstable-options&quot; </span>=&gt; <span class="self">self</span>.unstable_options = parse_empty(k, v)<span class="question-mark">?</span>,
+            <span class="string">&quot;no-index-update&quot; </span>=&gt; <span class="self">self</span>.no_index_update = parse_empty(k, v)<span class="question-mark">?</span>,
+            <span class="string">&quot;avoid-dev-deps&quot; </span>=&gt; <span class="self">self</span>.avoid_dev_deps = parse_empty(k, v)<span class="question-mark">?</span>,
+            <span class="string">&quot;minimal-versions&quot; </span>=&gt; <span class="self">self</span>.minimal_versions = parse_empty(k, v)<span class="question-mark">?</span>,
+            <span class="string">&quot;advanced-env&quot; </span>=&gt; <span class="self">self</span>.advanced_env = parse_empty(k, v)<span class="question-mark">?</span>,
+            <span class="string">&quot;config-include&quot; </span>=&gt; <span class="self">self</span>.config_include = parse_empty(k, v)<span class="question-mark">?</span>,
+            <span class="string">&quot;check-cfg&quot; </span>=&gt; {
+                <span class="self">self</span>.check_cfg = v.map_or(<span class="prelude-val">Ok</span>(<span class="prelude-val">None</span>), |v| parse_check_cfg(v.split(<span class="string">&#39;,&#39;</span>)))<span class="question-mark">?
+            </span>}
+            <span class="string">&quot;dual-proc-macros&quot; </span>=&gt; <span class="self">self</span>.dual_proc_macros = parse_empty(k, v)<span class="question-mark">?</span>,
+            <span class="comment">// can also be set in .cargo/config or with and ENV
+            </span><span class="string">&quot;mtime-on-use&quot; </span>=&gt; <span class="self">self</span>.mtime_on_use = parse_empty(k, v)<span class="question-mark">?</span>,
+            <span class="string">&quot;named-profiles&quot; </span>=&gt; stabilized_warn(k, <span class="string">&quot;1.57&quot;</span>, STABILIZED_NAMED_PROFILES),
+            <span class="string">&quot;binary-dep-depinfo&quot; </span>=&gt; <span class="self">self</span>.binary_dep_depinfo = parse_empty(k, v)<span class="question-mark">?</span>,
+            <span class="string">&quot;bindeps&quot; </span>=&gt; <span class="self">self</span>.bindeps = parse_empty(k, v)<span class="question-mark">?</span>,
+            <span class="string">&quot;build-std&quot; </span>=&gt; {
+                <span class="self">self</span>.build_std = <span class="prelude-val">Some</span>(<span class="kw">crate</span>::core::compiler::standard_lib::parse_unstable_flag(v))
+            }
+            <span class="string">&quot;build-std-features&quot; </span>=&gt; <span class="self">self</span>.build_std_features = <span class="prelude-val">Some</span>(parse_features(v)),
+            <span class="string">&quot;doctest-xcompile&quot; </span>=&gt; <span class="self">self</span>.doctest_xcompile = parse_empty(k, v)<span class="question-mark">?</span>,
+            <span class="string">&quot;doctest-in-workspace&quot; </span>=&gt; <span class="self">self</span>.doctest_in_workspace = parse_empty(k, v)<span class="question-mark">?</span>,
+            <span class="string">&quot;panic-abort-tests&quot; </span>=&gt; <span class="self">self</span>.panic_abort_tests = parse_empty(k, v)<span class="question-mark">?</span>,
+            <span class="string">&quot;jobserver-per-rustc&quot; </span>=&gt; <span class="self">self</span>.jobserver_per_rustc = parse_empty(k, v)<span class="question-mark">?</span>,
+            <span class="string">&quot;host-config&quot; </span>=&gt; <span class="self">self</span>.host_config = parse_empty(k, v)<span class="question-mark">?</span>,
+            <span class="string">&quot;target-applies-to-host&quot; </span>=&gt; <span class="self">self</span>.target_applies_to_host = parse_empty(k, v)<span class="question-mark">?</span>,
+            <span class="string">&quot;publish-timeout&quot; </span>=&gt; <span class="self">self</span>.publish_timeout = parse_empty(k, v)<span class="question-mark">?</span>,
+            <span class="string">&quot;features&quot; </span>=&gt; {
+                <span class="comment">// `-Z features` has been stabilized since 1.51,
+                // but `-Z features=compare` is still allowed for convenience
+                // to validate that the feature resolver resolves features
+                // in the same way as the dependency resolver,
+                // until we feel confident to remove entirely.
+                //
+                // See rust-lang/cargo#11168
+                </span><span class="kw">let </span>feats = parse_features(v);
+                <span class="kw">let </span>stab_is_not_empty = feats.iter().any(|feat| {
+                    <span class="macro">matches!</span>(
+                        feat.as_str(),
+                        <span class="string">&quot;build_dep&quot; </span>| <span class="string">&quot;host_dep&quot; </span>| <span class="string">&quot;dev_dep&quot; </span>| <span class="string">&quot;itarget&quot; </span>| <span class="string">&quot;all&quot;
+                    </span>)
+                });
+                <span class="kw">if </span>stab_is_not_empty || feats.is_empty() {
+                    <span class="comment">// Make this stabilized_err once -Zfeature support is removed.
+                    </span>stabilized_warn(k, <span class="string">&quot;1.51&quot;</span>, STABILIZED_FEATURES);
+                }
+                <span class="self">self</span>.features = <span class="prelude-val">Some</span>(feats);
+            }
+            <span class="string">&quot;separate-nightlies&quot; </span>=&gt; <span class="self">self</span>.separate_nightlies = parse_empty(k, v)<span class="question-mark">?</span>,
+            <span class="string">&quot;multitarget&quot; </span>=&gt; stabilized_warn(k, <span class="string">&quot;1.64&quot;</span>, STABILISED_MULTITARGET),
+            <span class="string">&quot;rustdoc-map&quot; </span>=&gt; <span class="self">self</span>.rustdoc_map = parse_empty(k, v)<span class="question-mark">?</span>,
+            <span class="string">&quot;terminal-width&quot; </span>=&gt; <span class="self">self</span>.terminal_width = <span class="prelude-val">Some</span>(parse_usize_opt(v)<span class="question-mark">?</span>),
+            <span class="string">&quot;sparse-registry&quot; </span>=&gt; <span class="self">self</span>.sparse_registry = parse_empty(k, v)<span class="question-mark">?</span>,
+            <span class="string">&quot;namespaced-features&quot; </span>=&gt; stabilized_warn(k, <span class="string">&quot;1.60&quot;</span>, STABILISED_NAMESPACED_FEATURES),
+            <span class="string">&quot;weak-dep-features&quot; </span>=&gt; stabilized_warn(k, <span class="string">&quot;1.60&quot;</span>, STABILIZED_WEAK_DEP_FEATURES),
+            <span class="string">&quot;credential-process&quot; </span>=&gt; <span class="self">self</span>.credential_process = parse_empty(k, v)<span class="question-mark">?</span>,
+            <span class="string">&quot;rustdoc-scrape-examples&quot; </span>=&gt; {
+                <span class="kw">if let </span><span class="prelude-val">Some</span>(s) = v {
+                    <span class="self">self</span>.rustdoc_scrape_examples = <span class="prelude-val">Some</span>(s.to_string())
+                } <span class="kw">else </span>{
+                    <span class="macro">bail!</span>(
+                        <span class="string">r#&quot;-Z rustdoc-scrape-examples must take &quot;all&quot; or &quot;examples&quot; as an argument&quot;#
+                    </span>)
+                }
+            }
+            <span class="string">&quot;skip-rustdoc-fingerprint&quot; </span>=&gt; <span class="self">self</span>.skip_rustdoc_fingerprint = parse_empty(k, v)<span class="question-mark">?</span>,
+            <span class="string">&quot;compile-progress&quot; </span>=&gt; stabilized_warn(k, <span class="string">&quot;1.30&quot;</span>, STABILIZED_COMPILE_PROGRESS),
+            <span class="string">&quot;offline&quot; </span>=&gt; stabilized_err(k, <span class="string">&quot;1.36&quot;</span>, STABILIZED_OFFLINE)<span class="question-mark">?</span>,
+            <span class="string">&quot;cache-messages&quot; </span>=&gt; stabilized_warn(k, <span class="string">&quot;1.40&quot;</span>, STABILIZED_CACHE_MESSAGES),
+            <span class="string">&quot;install-upgrade&quot; </span>=&gt; stabilized_warn(k, <span class="string">&quot;1.41&quot;</span>, STABILIZED_INSTALL_UPGRADE),
+            <span class="string">&quot;config-profile&quot; </span>=&gt; stabilized_warn(k, <span class="string">&quot;1.43&quot;</span>, STABILIZED_CONFIG_PROFILE),
+            <span class="string">&quot;crate-versions&quot; </span>=&gt; stabilized_warn(k, <span class="string">&quot;1.47&quot;</span>, STABILIZED_CRATE_VERSIONS),
+            <span class="string">&quot;package-features&quot; </span>=&gt; stabilized_warn(k, <span class="string">&quot;1.51&quot;</span>, STABILIZED_PACKAGE_FEATURES),
+            <span class="string">&quot;extra-link-arg&quot; </span>=&gt; stabilized_warn(k, <span class="string">&quot;1.56&quot;</span>, STABILIZED_EXTRA_LINK_ARG),
+            <span class="string">&quot;configurable-env&quot; </span>=&gt; stabilized_warn(k, <span class="string">&quot;1.56&quot;</span>, STABILIZED_CONFIGURABLE_ENV),
+            <span class="string">&quot;patch-in-config&quot; </span>=&gt; stabilized_warn(k, <span class="string">&quot;1.56&quot;</span>, STABILIZED_PATCH_IN_CONFIG),
+            <span class="string">&quot;future-incompat-report&quot; </span>=&gt; {
+                stabilized_warn(k, <span class="string">&quot;1.59.0&quot;</span>, STABILIZED_FUTURE_INCOMPAT_REPORT)
+            }
+            <span class="string">&quot;timings&quot; </span>=&gt; stabilized_warn(k, <span class="string">&quot;1.60&quot;</span>, STABILIZED_TIMINGS),
+            <span class="kw">_ </span>=&gt; <span class="macro">bail!</span>(<span class="string">&quot;unknown `-Z` flag specified: {}&quot;</span>, k),
+        }
+
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="doccomment">/// Generates an error if `-Z unstable-options` was not used for a new,
+    /// unstable command-line flag.
+    </span><span class="kw">pub fn </span>fail_if_stable_opt(<span class="kw-2">&amp;</span><span class="self">self</span>, flag: <span class="kw-2">&amp;</span>str, issue: u32) -&gt; CargoResult&lt;()&gt; {
+        <span class="kw">if </span>!<span class="self">self</span>.unstable_options {
+            <span class="kw">let </span>see = <span class="macro">format!</span>(
+                <span class="string">&quot;See https://github.com/rust-lang/cargo/issues/{} for more \
+                 information about the `{}` flag.&quot;</span>,
+                issue, flag
+            );
+            <span class="comment">// NOTE: a `config` isn&#39;t available here, check the channel directly
+            </span><span class="kw">let </span>channel = channel();
+            <span class="kw">if </span>channel == <span class="string">&quot;nightly&quot; </span>|| channel == <span class="string">&quot;dev&quot; </span>{
+                <span class="macro">bail!</span>(
+                    <span class="string">&quot;the `{}` flag is unstable, pass `-Z unstable-options` to enable it\n\
+                     {}&quot;</span>,
+                    flag,
+                    see
+                );
+            } <span class="kw">else </span>{
+                <span class="macro">bail!</span>(
+                    <span class="string">&quot;the `{}` flag is unstable, and only available on the nightly channel \
+                     of Cargo, but this is the `{}` channel\n\
+                     {}\n\
+                     {}&quot;</span>,
+                    flag,
+                    channel,
+                    SEE_CHANNELS,
+                    see
+                );
+            }
+        }
+        <span class="prelude-val">Ok</span>(())
+    }
+
+    <span class="doccomment">/// Generates an error if `-Z unstable-options` was not used for a new,
+    /// unstable subcommand.
+    </span><span class="kw">pub fn </span>fail_if_stable_command(
+        <span class="kw-2">&amp;</span><span class="self">self</span>,
+        config: <span class="kw-2">&amp;</span>Config,
+        command: <span class="kw-2">&amp;</span>str,
+        issue: u32,
+    ) -&gt; CargoResult&lt;()&gt; {
+        <span class="kw">if </span><span class="self">self</span>.unstable_options {
+            <span class="kw">return </span><span class="prelude-val">Ok</span>(());
+        }
+        <span class="kw">let </span>see = <span class="macro">format!</span>(
+            <span class="string">&quot;See https://github.com/rust-lang/cargo/issues/{} for more \
+            information about the `cargo {}` command.&quot;</span>,
+            issue, command
+        );
+        <span class="kw">if </span>config.nightly_features_allowed {
+            <span class="macro">bail!</span>(
+                <span class="string">&quot;the `cargo {}` command is unstable, pass `-Z unstable-options` to enable it\n\
+                 {}&quot;</span>,
+                command,
+                see
+            );
+        } <span class="kw">else </span>{
+            <span class="macro">bail!</span>(
+                <span class="string">&quot;the `cargo {}` command is unstable, and only available on the \
+                 nightly channel of Cargo, but this is the `{}` channel\n\
+                 {}\n\
+                 {}&quot;</span>,
+                command,
+                channel(),
+                SEE_CHANNELS,
+                see
+            );
+        }
+    }
+}
+
+<span class="doccomment">/// Returns the current release channel (&quot;stable&quot;, &quot;beta&quot;, &quot;nightly&quot;, &quot;dev&quot;).
+</span><span class="kw">pub fn </span>channel() -&gt; String {
+    <span class="kw">if let </span><span class="prelude-val">Ok</span>(override_channel) = env::var(<span class="string">&quot;__CARGO_TEST_CHANNEL_OVERRIDE_DO_NOT_USE_THIS&quot;</span>) {
+        <span class="kw">return </span>override_channel;
+    }
+    <span class="kw">if let </span><span class="prelude-val">Ok</span>(staging) = env::var(<span class="string">&quot;RUSTC_BOOTSTRAP&quot;</span>) {
+        <span class="kw">if </span>staging == <span class="string">&quot;1&quot; </span>{
+            <span class="kw">return </span><span class="string">&quot;dev&quot;</span>.to_string();
+        }
+    }
+    <span class="kw">crate</span>::version()
+        .release_channel
+        .unwrap_or_else(|| String::from(<span class="string">&quot;dev&quot;</span>))
+}
+</code></pre></div>
+</section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="cargo" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

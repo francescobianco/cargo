@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"struct":[["SourceConfig","Configuration for a particular source, found in TOML looking like:"],["SourceConfigDef","Definition of a source in a config file."],["SourceConfigMap",""]]};

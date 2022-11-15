@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["fetch","Executes `cargo fetch`."]],"struct":[["FetchOptions",""]]};

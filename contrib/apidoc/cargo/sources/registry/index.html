@@ -1,0 +1,126 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="A `Source` for registry-based packages."><meta name="keywords" content="rust, rustlang, rust-lang, registry"><title>cargo::sources::registry - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../normalize.css"><link rel="stylesheet" href="../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../ayu.css" disabled><link rel="stylesheet" href="../../../dark.css" disabled><link rel="stylesheet" href="../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../storage.js"></script><script defer src="../../../main.js"></script><noscript><link rel="stylesheet" href="../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../favicon.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../cargo/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../cargo/index.html"><div class="logo-container"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></div></a><h2 class="location"><a href="#">Module registry</a></h2><div class="sidebar-elems"><section><div class="block"><ul><li><a href="#modules">Modules</a></li><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#constants">Constants</a></li><li><a href="#traits">Traits</a></li><li><a href="#functions">Functions</a></li></ul></div></section></div></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../cargo/index.html"><img class="rust-logo" src="../../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="main-heading"><h1 class="fqn"><span class="in-band">Module <a href="../../index.html">cargo</a>::<wbr><a href="../index.html">sources</a>::<wbr><a class="mod" href="#">registry</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../../../clipboard.svg" width="19" height="18" alt="Copy item path"></button></span></h1><span class="out-of-band"><a class="srclink" href="../../../src/cargo/sources/registry/mod.rs.html#1-874">source</a> · <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span></div><details class="rustdoc-toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>A <code>Source</code> for registry-based packages.</p>
+<h2 id="whats-a-registry"><a href="#whats-a-registry">What’s a Registry?</a></h2>
+<p>Registries are central locations where packages can be uploaded to,
+discovered, and searched for. The purpose of a registry is to have a
+location that serves as permanent storage for versions of a crate over time.</p>
+<p>Compared to git sources, a registry provides many packages as well as many
+versions simultaneously. Git sources can also have commits deleted through
+rebasings where registries cannot have their versions deleted.</p>
+<h2 id="the-index-of-a-registry"><a href="#the-index-of-a-registry">The Index of a Registry</a></h2>
+<p>One of the major difficulties with a registry is that hosting so many
+packages may quickly run into performance problems when dealing with
+dependency graphs. It’s infeasible for cargo to download the entire contents
+of the registry just to resolve one package’s dependencies, for example. As
+a result, cargo needs some efficient method of querying what packages are
+available on a registry, what versions are available, and what the
+dependencies for each version is.</p>
+<p>One method of doing so would be having the registry expose an HTTP endpoint
+which can be queried with a list of packages and a response of their
+dependencies and versions is returned. This is somewhat inefficient however
+as we may have to hit the endpoint many times and we may have already
+queried for much of the data locally already (for other packages, for
+example). This also involves inventing a transport format between the
+registry and Cargo itself, so this route was not taken.</p>
+<p>Instead, Cargo communicates with registries through a git repository
+referred to as the Index. The Index of a registry is essentially an easily
+query-able version of the registry’s database for a list of versions of a
+package as well as a list of dependencies for each version.</p>
+<p>Using git to host this index provides a number of benefits:</p>
+<ul>
+<li>
+<p>The entire index can be stored efficiently locally on disk. This means
+that all queries of a registry can happen locally and don’t need to touch
+the network.</p>
+</li>
+<li>
+<p>Updates of the index are quite efficient. Using git buys incremental
+updates, compressed transmission, etc for free. The index must be updated
+each time we need fresh information from a registry, but this is one
+update of a git repository that probably hasn’t changed a whole lot so
+it shouldn’t be too expensive.</p>
+<p>Additionally, each modification to the index is just appending a line at
+the end of a file (the exact format is described later). This means that
+the commits for an index are quite small and easily applied/compressible.</p>
+</li>
+</ul>
+<h3 id="the-format-of-the-index"><a href="#the-format-of-the-index">The format of the Index</a></h3>
+<p>The index is a store for the list of versions for all packages known, so its
+format on disk is optimized slightly to ensure that <code>ls registry</code> doesn’t
+produce a list of all packages ever known. The index also wants to ensure
+that there’s not a million files which may actually end up hitting
+filesystem limits at some point. To this end, a few decisions were made
+about the format of the registry:</p>
+<ol>
+<li>Each crate will have one file corresponding to it. Each version for a
+crate will just be a line in this file.</li>
+<li>There will be two tiers of directories for crate names, under which
+crates corresponding to those tiers will be located.</li>
+</ol>
+<p>As an example, this is an example hierarchy of an index:</p>
+<div class="example-wrap"><pre class="language-notrust"><code>.
+├── 3
+│   └── u
+│       └── url
+├── bz
+│   └── ip
+│       └── bzip2
+├── config.json
+├── en
+│   └── co
+│       └── encoding
+└── li
+    ├── bg
+    │   └── libgit2
+    └── nk
+        └── link-config</code></pre></div>
+<p>The root of the index contains a <code>config.json</code> file with a few entries
+corresponding to the registry (see <a href="struct.RegistryConfig.html" title="RegistryConfig"><code>RegistryConfig</code></a> below).</p>
+<p>Otherwise, there are three numbered directories (1, 2, 3) for crates with
+names 1, 2, and 3 characters in length. The 1/2 directories simply have the
+crate files underneath them, while the 3 directory is sharded by the first
+letter of the crate name.</p>
+<p>Otherwise the top-level directory contains many two-letter directory names,
+each of which has many sub-folders with two letters. At the end of all these
+are the actual crate files themselves.</p>
+<p>The purpose of this layout is to hopefully cut down on <code>ls</code> sizes as well as
+efficient lookup based on the crate name itself.</p>
+<h3 id="crate-files"><a href="#crate-files">Crate files</a></h3>
+<p>Each file in the index is the history of one crate over time. Each line in
+the file corresponds to one version of a crate, stored in JSON format (see
+the <code>RegistryPackage</code> structure below).</p>
+<p>As new versions are published, new lines are appended to this file. The only
+modifications to this file that should happen over time are yanks of a
+particular version.</p>
+<h2 id="downloading-packages"><a href="#downloading-packages">Downloading Packages</a></h2>
+<p>The purpose of the Index was to provide an efficient method to resolve the
+dependency graph for a package. So far we only required one network
+interaction to update the registry’s repository (yay!). After resolution has
+been performed, however we need to download the contents of packages so we
+can read the full manifest and build the source code.</p>
+<p>To accomplish this, this source’s <code>download</code> method will make an HTTP
+request per-package requested to download tarballs into a local cache. These
+tarballs will then be unpacked into a destination folder.</p>
+<p>Note that because versions uploaded to the registry are frozen forever that
+the HTTP download and unpacking can all be skipped if the version has
+already been downloaded and unpacked. This caching allows us to only
+download a package when absolutely necessary.</p>
+<h2 id="filesystem-hierarchy"><a href="#filesystem-hierarchy">Filesystem Hierarchy</a></h2>
+<p>Overall, the <code>$HOME/.cargo</code> looks like this when talking about the registry:</p>
+<div class="example-wrap"><pre class="language-notrust"><code>$HOME/.cargo/registry/
+
+    index/
+        registry1-&lt;hash&gt;/
+        registry2-&lt;hash&gt;/
+        ...
+
+    cache/
+        registry1-&lt;hash&gt;/&lt;pkg&gt;-&lt;version&gt;.crate
+        ...
+
+    src/
+        registry1-&lt;hash&gt;/&lt;pkg&gt;-&lt;version&gt;/...
+        ...</code></pre></div></div></details><h2 id="modules" class="small-section-header"><a href="#modules">Modules</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="mod" href="download/index.html" title="cargo::sources::registry::download mod">download</a><span title="Restricted Visibility">&nbsp;🔒</span> </div></div><div class="item-row"><div class="item-left module-item"><a class="mod" href="http_remote/index.html" title="cargo::sources::registry::http_remote mod">http_remote</a><span title="Restricted Visibility">&nbsp;🔒</span> </div><div class="item-right docblock-short">Access to a HTTP-based crate registry.</div></div><div class="item-row"><div class="item-left module-item"><a class="mod" href="index/index.html" title="cargo::sources::registry::index mod">index</a><span title="Restricted Visibility">&nbsp;🔒</span> </div><div class="item-right docblock-short">Management of the index of a registry source</div></div><div class="item-row"><div class="item-left module-item"><a class="mod" href="local/index.html" title="cargo::sources::registry::local mod">local</a><span title="Restricted Visibility">&nbsp;🔒</span> </div></div><div class="item-row"><div class="item-left module-item"><a class="mod" href="remote/index.html" title="cargo::sources::registry::remote mod">remote</a><span title="Restricted Visibility">&nbsp;🔒</span> </div></div></div><h2 id="structs" class="small-section-header"><a href="#structs">Structs</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.RegistryConfig.html" title="cargo::sources::registry::RegistryConfig struct">RegistryConfig</a></div><div class="item-right docblock-short">The <code>config.json</code> file stored in the index.</div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.RegistryDependency.html" title="cargo::sources::registry::RegistryDependency struct">RegistryDependency</a><span title="Restricted Visibility">&nbsp;🔒</span> </div><div class="item-right docblock-short">A dependency as encoded in the index JSON.</div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.RegistryPackage.html" title="cargo::sources::registry::RegistryPackage struct">RegistryPackage</a></div><div class="item-right docblock-short">A single line in the index representing a single version of a package.</div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.RegistrySource.html" title="cargo::sources::registry::RegistrySource struct">RegistrySource</a></div><div class="item-right docblock-short">A “source” for a local (see <code>local::LocalRegistry</code>) or remote (see
+<code>remote::RemoteRegistry</code>) registry.</div></div></div><h2 id="enums" class="small-section-header"><a href="#enums">Enums</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="enum" href="enum.LoadResponse.html" title="cargo::sources::registry::LoadResponse enum">LoadResponse</a></div></div><div class="item-row"><div class="item-left module-item"><a class="enum" href="enum.MaybeLock.html" title="cargo::sources::registry::MaybeLock enum">MaybeLock</a></div><div class="item-right docblock-short">The status of <a href="trait.RegistryData.html#tymethod.download" title="RegistryData::download"><code>RegistryData::download</code></a> which indicates if a <code>.crate</code>
+file has already been downloaded, or if not then the URL to download.</div></div></div><h2 id="constants" class="small-section-header"><a href="#constants">Constants</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="constant" href="constant.CHECKSUM_TEMPLATE.html" title="cargo::sources::registry::CHECKSUM_TEMPLATE constant">CHECKSUM_TEMPLATE</a><span title="Restricted Visibility">&nbsp;🔒</span> </div></div><div class="item-row"><div class="item-left module-item"><a class="constant" href="constant.CRATES_IO_DOMAIN.html" title="cargo::sources::registry::CRATES_IO_DOMAIN constant">CRATES_IO_DOMAIN</a></div></div><div class="item-row"><div class="item-left module-item"><a class="constant" href="constant.CRATES_IO_HTTP_INDEX.html" title="cargo::sources::registry::CRATES_IO_HTTP_INDEX constant">CRATES_IO_HTTP_INDEX</a></div></div><div class="item-row"><div class="item-left module-item"><a class="constant" href="constant.CRATES_IO_INDEX.html" title="cargo::sources::registry::CRATES_IO_INDEX constant">CRATES_IO_INDEX</a></div></div><div class="item-row"><div class="item-left module-item"><a class="constant" href="constant.CRATES_IO_REGISTRY.html" title="cargo::sources::registry::CRATES_IO_REGISTRY constant">CRATES_IO_REGISTRY</a></div></div><div class="item-row"><div class="item-left module-item"><a class="constant" href="constant.CRATE_TEMPLATE.html" title="cargo::sources::registry::CRATE_TEMPLATE constant">CRATE_TEMPLATE</a><span title="Restricted Visibility">&nbsp;🔒</span> </div></div><div class="item-row"><div class="item-left module-item"><a class="constant" href="constant.INDEX_V_MAX.html" title="cargo::sources::registry::INDEX_V_MAX constant">INDEX_V_MAX</a><span title="Restricted Visibility">&nbsp;🔒</span> </div><div class="item-right docblock-short">The maximum version of the <code>v</code> field in the index this version of cargo
+understands.</div></div><div class="item-row"><div class="item-left module-item"><a class="constant" href="constant.LOWER_PREFIX_TEMPLATE.html" title="cargo::sources::registry::LOWER_PREFIX_TEMPLATE constant">LOWER_PREFIX_TEMPLATE</a><span title="Restricted Visibility">&nbsp;🔒</span> </div></div><div class="item-row"><div class="item-left module-item"><a class="constant" href="constant.MAX_UNPACK_SIZE.html" title="cargo::sources::registry::MAX_UNPACK_SIZE constant">MAX_UNPACK_SIZE</a><span title="Restricted Visibility">&nbsp;🔒</span> </div></div><div class="item-row"><div class="item-left module-item"><a class="constant" href="constant.PACKAGE_SOURCE_LOCK.html" title="cargo::sources::registry::PACKAGE_SOURCE_LOCK constant">PACKAGE_SOURCE_LOCK</a><span title="Restricted Visibility">&nbsp;🔒</span> </div></div><div class="item-row"><div class="item-left module-item"><a class="constant" href="constant.PREFIX_TEMPLATE.html" title="cargo::sources::registry::PREFIX_TEMPLATE constant">PREFIX_TEMPLATE</a><span title="Restricted Visibility">&nbsp;🔒</span> </div></div><div class="item-row"><div class="item-left module-item"><a class="constant" href="constant.VERSION_TEMPLATE.html" title="cargo::sources::registry::VERSION_TEMPLATE constant">VERSION_TEMPLATE</a><span title="Restricted Visibility">&nbsp;🔒</span> </div></div></div><h2 id="traits" class="small-section-header"><a href="#traits">Traits</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="trait" href="trait.RegistryData.html" title="cargo::sources::registry::RegistryData trait">RegistryData</a></div><div class="item-right docblock-short">An abstract interface to handle both a local (see <code>local::LocalRegistry</code>)
+and remote (see <code>remote::RemoteRegistry</code>) registry.</div></div></div><h2 id="functions" class="small-section-header"><a href="#functions">Functions</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="fn" href="fn.make_dep_prefix.html" title="cargo::sources::registry::make_dep_prefix fn">make_dep_prefix</a><span title="Restricted Visibility">&nbsp;🔒</span> </div></div><div class="item-row"><div class="item-left module-item"><a class="fn" href="fn.max_unpack_size.html" title="cargo::sources::registry::max_unpack_size fn">max_unpack_size</a><span title="Restricted Visibility">&nbsp;🔒</span> </div><div class="item-right docblock-short">For integration test only.</div></div><div class="item-row"><div class="item-left module-item"><a class="fn" href="fn.short_name.html" title="cargo::sources::registry::short_name fn">short_name</a><span title="Restricted Visibility">&nbsp;🔒</span> </div></div></div></section></div></main><div id="rustdoc-vars" data-root-path="../../../" data-current-crate="cargo" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

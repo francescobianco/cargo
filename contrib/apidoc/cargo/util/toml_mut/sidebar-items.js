@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"mod":[["dependency","Information about dependencies in a manifest."],["manifest","Parsing and editing of manifest files."]]};

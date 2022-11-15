@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["clean","Cleans the package’s build artifacts."],["clean_entire_folder",""],["escape_glob_path",""],["rm_rf",""],["rm_rf_glob",""],["rm_rf_package_glob_containing_hash","Glob remove artifacts for the provided `package`"]],"struct":[["CleanOptions",""],["CleaningFolderBar",""],["CleaningPackagesBar",""]],"trait":[["CleaningProgressBar",""]]};

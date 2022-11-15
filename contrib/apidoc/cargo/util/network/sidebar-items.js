@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"fn":[["maybe_spurious",""],["with_retry","Wrapper method for network call retry logic."]],"struct":[["Retry",""]],"trait":[["PollExt",""]]};

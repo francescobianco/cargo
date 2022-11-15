@@ -1,0 +1,66 @@
+<!DOCTYPE html><html lang="en"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1.0"><meta name="generator" content="rustdoc"><meta name="description" content="Management of the index of a registry source"><meta name="keywords" content="rust, rustlang, rust-lang, index"><title>cargo::sources::registry::index - Rust</title><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Regular.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../FiraSans-Medium.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Regular.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceSerif4-Bold.ttf.woff2"><link rel="preload" as="font" type="font/woff2" crossorigin href="../../../../SourceCodePro-Semibold.ttf.woff2"><link rel="stylesheet" href="../../../../normalize.css"><link rel="stylesheet" href="../../../../rustdoc.css" id="mainThemeStyle"><link rel="stylesheet" href="../../../../ayu.css" disabled><link rel="stylesheet" href="../../../../dark.css" disabled><link rel="stylesheet" href="../../../../light.css" id="themeStyle"><script id="default-settings" ></script><script src="../../../../storage.js"></script><script defer src="../../../../main.js"></script><noscript><link rel="stylesheet" href="../../../../noscript.css"></noscript><link rel="alternate icon" type="image/png" href="../../../../favicon-16x16.png"><link rel="alternate icon" type="image/png" href="../../../../favicon-32x32.png"><link rel="icon" type="image/svg+xml" href="../../../../favicon.svg"></head><body class="rustdoc mod"><!--[if lte IE 11]><div class="warning">This old browser is unsupported and will most likely display funky things.</div><![endif]--><nav class="mobile-topbar"><button class="sidebar-menu-toggle">&#9776;</button><a class="sidebar-logo" href="../../../../cargo/index.html"><div class="logo-container"><img class="rust-logo" src="../../../../rust-logo.svg" alt="logo"></div></a><h2 class="location"></h2></nav><nav class="sidebar"><a class="sidebar-logo" href="../../../../cargo/index.html"><div class="logo-container"><img class="rust-logo" src="../../../../rust-logo.svg" alt="logo"></div></a><h2 class="location"><a href="#">Module index</a></h2><div class="sidebar-elems"><section><div class="block"><ul><li><a href="#structs">Structs</a></li><li><a href="#enums">Enums</a></li><li><a href="#constants">Constants</a></li><li><a href="#functions">Functions</a></li></ul></div></section></div></nav><main><div class="width-limiter"><div class="sub-container"><a class="sub-logo-container" href="../../../../cargo/index.html"><img class="rust-logo" src="../../../../rust-logo.svg" alt="logo"></a><nav class="sub"><form class="search-form"><div class="search-container"><span></span><input class="search-input" name="search" autocomplete="off" spellcheck="false" placeholder="Click or press ‘S’ to search, ‘?’ for more options…" type="search"><div id="help-button" title="help" tabindex="-1"><button type="button">?</button></div><div id="settings-menu" tabindex="-1"><a href="../../../../settings.html" title="settings"><img width="22" height="22" alt="Change settings" src="../../../../wheel.svg"></a></div></div></form></nav></div><section id="main-content" class="content"><div class="main-heading"><h1 class="fqn"><span class="in-band">Module <a href="../../../index.html">cargo</a>::<wbr><a href="../../index.html">sources</a>::<wbr><a href="../index.html">registry</a>::<wbr><a class="mod" href="#">index</a><button id="copy-path" onclick="copy_path(this)" title="Copy item path to clipboard"><img src="../../../../clipboard.svg" width="19" height="18" alt="Copy item path"></button></span></h1><span class="out-of-band"><a class="srclink" href="../../../../src/cargo/sources/registry/index.rs.html#1-889">source</a> · <a id="toggle-all-docs" href="javascript:void(0)" title="collapse all docs">[<span class="inner">&#x2212;</span>]</a></span></div><details class="rustdoc-toggle top-doc" open><summary class="hideme"><span>Expand description</span></summary><div class="docblock"><p>Management of the index of a registry source</p>
+<p>This module contains management of the index and various operations, such as
+actually parsing the index, looking for crates, etc. This is intended to be
+abstract over remote indices (downloaded via git) and local registry indices
+(which are all just present on the filesystem).</p>
+<h3 id="index-performance"><a href="#index-performance">Index Performance</a></h3>
+<p>One important aspect of the index is that we want to optimize the “happy
+path” as much as possible. Whenever you type <code>cargo build</code> Cargo will
+<em>always</em> reparse the registry and learn about dependency information. This
+is done because Cargo needs to learn about the upstream crates.io crates
+that you’re using and ensure that the preexisting <code>Cargo.lock</code> still matches
+the current state of the world.</p>
+<p>Consequently, Cargo “null builds” (the index that Cargo adds to each build
+itself) need to be fast when accessing the index. The primary performance
+optimization here is to avoid parsing JSON blobs from the registry if we
+don’t need them. Most secondary optimizations are centered around removing
+allocations and such, but avoiding parsing JSON is the #1 optimization.</p>
+<p>When we get queries from the resolver we’re given a <code>Dependency</code>. This
+dependency in turn has a version requirement, and with lock files that
+already exist these version requirements are exact version requirements
+<code>=a.b.c</code>. This means that we in theory only need to parse one line of JSON
+per query in the registry, the one that matches version <code>a.b.c</code>.</p>
+<p>The crates.io index, however, is not amenable to this form of query. Instead
+the crates.io index simply is a file where each line is a JSON blob. To
+learn about the versions in each JSON blob we would need to parse the JSON,
+defeating the purpose of trying to parse as little as possible.</p>
+<blockquote>
+<p>Note that as a small aside even <em>loading</em> the JSON from the registry is
+actually pretty slow. For crates.io and remote registries we don’t
+actually check out the git index on disk because that takes quite some
+time and is quite large. Instead we use <code>libgit2</code> to read the JSON from
+the raw git objects. This in turn can be slow (aka show up high in
+profiles) because libgit2 has to do deflate decompression and such.</p>
+</blockquote>
+<p>To solve all these issues a strategy is employed here where Cargo basically
+creates an index into the index. The first time a package is queried about
+(first time being for an entire computer) Cargo will load the contents
+(slowly via libgit2) from the registry. It will then (slowly) parse every
+single line to learn about its versions. Afterwards, however, Cargo will
+emit a new file (a cache) which is amenable for speedily parsing in future
+invocations.</p>
+<p>This cache file is currently organized by basically having the semver
+version extracted from each JSON blob. That way Cargo can quickly and easily
+parse all versions contained and which JSON blob they’re associated with.
+The JSON blob then doesn’t actually need to get parsed unless the version is
+parsed.</p>
+<p>Altogether the initial measurements of this shows a massive improvement for
+Cargo null build performance. It’s expected that the improvements earned
+here will continue to grow over time in the sense that the previous
+implementation (parse all lines each time) actually continues to slow down
+over time as new versions of a crate are published. In any case when first
+implemented a null build of Cargo itself would parse 3700 JSON blobs from
+the registry and load 150 blobs from git. Afterwards it parses 150 JSON
+blobs and loads 0 files git. Removing 200ms or more from Cargo’s startup
+time is certainly nothing to sneeze at!</p>
+<p>Note that this is just a high-level overview, there’s of course lots of
+details like invalidating caches and whatnot which are handled below, but
+hopefully those are more obvious inline in the code itself.</p>
+</div></details><h2 id="structs" class="small-section-header"><a href="#structs">Structs</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.IndexSummary.html" title="cargo::sources::registry::index::IndexSummary struct">IndexSummary</a></div><div class="item-right docblock-short">A parsed representation of a summary from the index.</div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.RegistryIndex.html" title="cargo::sources::registry::index::RegistryIndex struct">RegistryIndex</a></div><div class="item-right docblock-short">Manager for handling the on-disk index.</div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.Summaries.html" title="cargo::sources::registry::index::Summaries struct">Summaries</a><span title="Restricted Visibility">&nbsp;🔒</span> </div><div class="item-right docblock-short">An internal cache of summaries for a particular package.</div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.SummariesCache.html" title="cargo::sources::registry::index::SummariesCache struct">SummariesCache</a><span title="Restricted Visibility">&nbsp;🔒</span> </div><div class="item-right docblock-short">A representation of the cache on disk that Cargo maintains of summaries.
+Cargo will initially parse all summaries in the registry and will then
+serialize that into this form and place it in a new location on disk,
+ensuring that access in the future is much speedier.</div></div><div class="item-row"><div class="item-left module-item"><a class="struct" href="struct.UncanonicalizedIter.html" title="cargo::sources::registry::index::UncanonicalizedIter struct">UncanonicalizedIter</a><span title="Restricted Visibility">&nbsp;🔒</span> </div><div class="item-right docblock-short">Crates.io treats hyphen and underscores as interchangeable, but the index and old Cargo do not.
+Therefore, the index must store uncanonicalized version of the name so old Cargo’s can find it.
+This loop tries all possible combinations of switching hyphen and underscores to find the
+uncanonicalized one. As all stored inputs have the correct spelling, we start with the spelling
+as-provided.</div></div></div><h2 id="enums" class="small-section-header"><a href="#enums">Enums</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="enum" href="enum.MaybeIndexSummary.html" title="cargo::sources::registry::index::MaybeIndexSummary enum">MaybeIndexSummary</a><span title="Restricted Visibility">&nbsp;🔒</span> </div><div class="item-right docblock-short">A lazily parsed <code>IndexSummary</code>.</div></div></div><h2 id="constants" class="small-section-header"><a href="#constants">Constants</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="constant" href="constant.CURRENT_CACHE_VERSION.html" title="cargo::sources::registry::index::CURRENT_CACHE_VERSION constant">CURRENT_CACHE_VERSION</a><span title="Restricted Visibility">&nbsp;🔒</span> </div></div></div><h2 id="functions" class="small-section-header"><a href="#functions">Functions</a></h2><div class="item-table"><div class="item-row"><div class="item-left module-item"><a class="fn" href="fn.split.html" title="cargo::sources::registry::index::split fn">split</a><span title="Restricted Visibility">&nbsp;🔒</span> </div></div></div></section></div></main><div id="rustdoc-vars" data-root-path="../../../../" data-current-crate="cargo" data-themes="ayu,dark,light" data-resource-suffix="" data-rustdoc-version="1.65.0 (897e37553 2022-11-02)" ></div></body></html>

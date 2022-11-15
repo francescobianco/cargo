@@ -1,0 +1,1 @@
+window.SIDEBAR_ITEMS = {"enum":[["Chunk",""]],"mod":[["parse","Parser for the `--format` string for `cargo tree`."]],"struct":[["Display",""],["Pattern",""]]};
